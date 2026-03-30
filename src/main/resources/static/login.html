@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>로그인 - 주식 대시보드</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f0f2f5; }
+        .auth-box { background: white; border-radius: 12px; padding: 40px; width: 380px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+        .auth-box h2 { color: #1a3c5e; font-size: 22px; margin-bottom: 8px; text-align: center; }
+        .auth-box p { color: #888; font-size: 13px; text-align: center; margin-bottom: 28px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { font-size: 13px; color: #555; display: block; margin-bottom: 6px; }
+        .form-group input { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+        .form-group input:focus { outline: none; border-color: #1a3c5e; }
+        .btn-primary { width: 100%; padding: 12px; background: #1a3c5e; color: white; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; margin-top: 8px; }
+        .btn-primary:hover { background: #15304e; }
+        .toggle-link { text-align: center; margin-top: 16px; font-size: 13px; color: #888; }
+        .toggle-link span { color: #1a3c5e; cursor: pointer; font-weight: 600; }
+        .error-msg { color: #e53935; font-size: 13px; text-align: center; margin-top: 8px; display: none; }
+    </style>
+</head>
+<body>
+<div class="auth-box">
+    <h2>📈 주식 대시보드</h2>
+
+    <div id="login-form">
+        <p>로그인하고 관심종목을 관리하세요</p>
+        <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="login-email" placeholder="email@example.com">
+        </div>
+        <div class="form-group">
+            <label>비밀번호</label>
+            <input type="password" id="login-pw" placeholder="비밀번호 입력">
+        </div>
+        <button class="btn-primary" onclick="doLogin()">로그인</button>
+        <p class="error-msg" id="login-error">이메일 또는 비밀번호가 틀렸습니다.</p>
+        <div class="toggle-link">계정이 없으신가요? <span onclick="toggleForm('register')">회원가입</span></div>
+    </div>
+
+    <div id="register-form" style="display:none">
+        <p>회원가입 후 관심종목을 저장하세요</p>
+        <div class="form-group">
+            <label>이메일</label>
+            <input type="email" id="reg-email" placeholder="email@example.com">
+        </div>
+        <div class="form-group">
+            <label>비밀번호</label>
+            <input type="password" id="reg-pw" placeholder="비밀번호 입력">
+        </div>
+        <button class="btn-primary" onclick="doRegister()">회원가입</button>
+        <p class="error-msg" id="reg-error"></p>
+        <div class="toggle-link">이미 계정이 있으신가요? <span onclick="toggleForm('login')">로그인</span></div>
+    </div>
+</div>
+
+<script>
+const API = 'http://localhost:8081/api/user';
+
+function toggleForm(type) {
+    document.getElementById('login-form').style.display = type === 'login' ? 'block' : 'none';
+    document.getElementById('register-form').style.display = type === 'register' ? 'block' : 'none';
+}
+
+async function doLogin() {
+    const email = document.getElementById('login-email').value;
+    const pw = document.getElementById('login-pw').value;
+    try {
+        const res = await fetch(`${API}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: pw })
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('email', email);
+        location.href = 'index.html';
+    } catch {
+        document.getElementById('login-error').style.display = 'block';
+    }
+}
+
+async function doRegister() {
+    const email = document.getElementById('reg-email').value;
+    const pw = document.getElementById('reg-pw').value;
+    try {
+        const res = await fetch(`${API}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: pw })
+        });
+        if (!res.ok) throw new Error();
+        alert('회원가입 완료! 로그인해주세요.');
+        toggleForm('login');
+    } catch {
+        const err = document.getElementById('reg-error');
+        err.textContent = '이미 존재하는 이메일입니다.';
+        err.style.display = 'block';
+    }
+}
+</script>
+</body>
+</html>

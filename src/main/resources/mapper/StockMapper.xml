@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.stock.dashboard.dao.StockDao">
+
+	<select id="selectAllItems"
+		resultType="com.stock.dashboard.dto.StockItemDto">
+		SELECT ITEM_ID, TICKER, ITEM_NM, MARKET
+		FROM STOCK_ITEM
+		ORDER BY ITEM_NM
+	</select>
+
+	<select id="selectItemByTicker" parameterType="String"
+		resultType="com.stock.dashboard.dto.StockItemDto">
+		SELECT ITEM_ID, TICKER, ITEM_NM, MARKET
+		FROM STOCK_ITEM
+		WHERE TICKER = #{ticker}
+	</select>
+
+	<insert id="insertStockItem"
+		parameterType="com.stock.dashboard.dto.StockItemDto">
+		INSERT INTO STOCK_ITEM (ITEM_ID, TICKER, ITEM_NM, MARKET, CREATED_AT)
+		VALUES (SEQ_STOCK_ITEM.NEXTVAL, #{ticker}, #{itemNm}, #{market}, SYSDATE)
+	</insert>
+
+	<insert id="insertStockItemIfNotExists"
+		parameterType="com.stock.dashboard.dto.StockPriceDto">
+		MERGE INTO STOCK_ITEM SI
+		USING DUAL ON (SI.TICKER = #{srtnCd})
+		WHEN NOT MATCHED THEN
+		INSERT (ITEM_ID, TICKER, ITEM_NM, MARKET, CREATED_AT)
+		VALUES (SEQ_STOCK_ITEM.NEXTVAL, #{srtnCd}, #{itmsNm}, #{mrktCtg}, SYSDATE)
+	</insert>
+
+	<insert id="insertStockPrice"
+		parameterType="com.stock.dashboard.dto.StockPriceDto">
+		INSERT INTO STOCK_PRICE (PRICE_ID, ITEM_ID, OPEN_PRICE, CLOSE_PRICE,
+		HIGH_PRICE, LOW_PRICE, VOLUME, TRADE_DATE)
+		SELECT SEQ_STOCK_PRICE.NEXTVAL, I.ITEM_ID,
+		#{mkp}, #{clpr}, #{hipr}, #{lopr}, #{trqu},
+		TO_DATE(#{basDt}, 'YYYYMMDD')
+		FROM STOCK_ITEM I
+		WHERE I.TICKER = #{srtnCd}
+		AND NOT EXISTS (
+		SELECT 1 FROM STOCK_PRICE P
+		WHERE P.ITEM_ID = I.ITEM_ID
+		AND P.TRADE_DATE = TO_DATE(#{basDt}, 'YYYYMMDD')
+		)
+	</insert>
+
+	<!-- 튜닝 포인트: 기존: WHERE P.TRADE_DATE = (SELECT MAX(TRADE_DATE) FROM STOCK_PRICE) 
+		→ 전체 테이블 스캔 서브쿼리를 매 행마다 실행 변경: WITH 절로 MAX_DATE 한 번만 계산 후 재사용 -->
+	<select id="selectLatestPrices"
+		resultType="com.stock.dashboard.dto.StockPriceDto">
+		WITH MAX_DATE AS (
+		SELECT MAX(TRADE_DATE) AS DT FROM STOCK_PRICE
+		)
+		SELECT P.OPEN_PRICE AS mkp,
+		P.CLOSE_PRICE AS clpr,
+		P.HIGH_PRICE AS hipr,
+		P.LOW_PRICE AS lopr,
+		P.VOLUME AS trqu,
+		TO_CHAR(P.TRADE_DATE, 'YYYYMMDD') AS basDt,
+		I.ITEM_ID AS itemId,
+		I.TICKER AS srtnCd,
+		I.ITEM_NM AS itmsNm,
+		I.MARKET AS mrktCtg
+		FROM STOCK_PRICE P
+		JOIN STOCK_ITEM I ON P.ITEM_ID = I.ITEM_ID
+		JOIN MAX_DATE M ON P.TRADE_DATE = M.DT
+		ORDER BY P.VOLUME DESC
+	</select>
+
+	<select id="selectLatestPricesByItemIds"
+		resultType="com.stock.dashboard.dto.StockPriceDto">
+		WITH MAX_DATE AS (
+		SELECT MAX(TRADE_DATE) AS DT FROM STOCK_PRICE
+		)
+		SELECT P.OPEN_PRICE AS mkp,
+		P.CLOSE_PRICE AS clpr,
+		P.HIGH_PRICE AS hipr,
+		P.LOW_PRICE AS lopr,
+		P.VOLUME AS trqu,
+		TO_CHAR(P.TRADE_DATE, 'YYYYMMDD') AS basDt,
+		I.ITEM_ID AS itemId,
+		I.TICKER AS srtnCd,
+		I.ITEM_NM AS itmsNm,
+		I.MARKET AS mrktCtg
+		FROM STOCK_PRICE P
+		JOIN STOCK_ITEM I ON P.ITEM_ID = I.ITEM_ID
+		JOIN MAX_DATE M ON P.TRADE_DATE = M.DT
+		WHERE I.ITEM_ID IN
+		<foreach item="id" collection="itemIds" open="(" separator=","
+			close=")">
+			#{id}
+		</foreach>
+		ORDER BY P.VOLUME DESC
+	</select>
+
+	<select id="selectPriceByTicker" parameterType="String"
+		resultType="com.stock.dashboard.dto.StockPriceDto">
+		SELECT P.OPEN_PRICE AS mkp,
+		P.CLOSE_PRICE AS clpr,
+		P.HIGH_PRICE AS hipr,
+		P.LOW_PRICE AS lopr,
+		P.VOLUME AS trqu,
+		TO_CHAR(P.TRADE_DATE, 'YYYYMMDD') AS basDt,
+		I.TICKER AS srtnCd,
+		I.ITEM_NM AS itmsNm,
+		I.MARKET AS mrktCtg
+		FROM STOCK_PRICE P
+		JOIN STOCK_ITEM I ON P.ITEM_ID = I.ITEM_ID
+		WHERE I.TICKER = #{ticker}
+		ORDER BY P.TRADE_DATE DESC
+	</select>
+
+	<select id="selectPriceByTickerAndDate"
+		resultType="com.stock.dashboard.dto.StockPriceDto">
+		SELECT P.OPEN_PRICE AS mkp,
+		P.CLOSE_PRICE AS clpr,
+		P.HIGH_PRICE AS hipr,
+		P.LOW_PRICE AS lopr,
+		P.VOLUME AS trqu,
+		TO_CHAR(P.TRADE_DATE, 'YYYYMMDD') AS basDt,
+		I.TICKER AS srtnCd,
+		I.ITEM_NM AS itmsNm,
+		I.MARKET AS mrktCtg
+		FROM STOCK_PRICE P
+		JOIN STOCK_ITEM I ON P.ITEM_ID = I.ITEM_ID
+		WHERE I.TICKER = #{ticker}
+		AND P.TRADE_DATE BETWEEN TO_DATE(#{startDate}, 'YYYYMMDD')
+		AND TO_DATE(#{endDate}, 'YYYYMMDD')
+		ORDER BY P.TRADE_DATE ASC
+	</select>
+
+
+	<!-- startDate~endDate 범위 내에 데이터가 있는 티커 = 이미 과거 수집 완료로 간주 -->
+	<select id="selectCollectedTickers" resultType="String">
+		SELECT I.TICKER
+		FROM STOCK_ITEM I
+		WHERE EXISTS (
+			SELECT 1 FROM STOCK_PRICE P
+			WHERE P.ITEM_ID = I.ITEM_ID
+			AND P.TRADE_DATE &gt;= TO_DATE(#{startDate}, 'YYYYMMDD')
+			AND P.TRADE_DATE &lt;= TO_DATE(#{endDate}, 'YYYYMMDD')
+		)
+	</select>
+
+</mapper>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.stock.dashboard.dao.RefreshTokenDao">
+
+    <insert id="insertRefreshToken" parameterType="com.stock.dashboard.dto.RefreshTokenDto">
+        INSERT INTO REFRESH_TOKEN (TOKEN_ID, USER_ID, TOKEN, EXPIRED_AT, CREATED_AT)
+        VALUES (SEQ_REFRESH_TOKEN.NEXTVAL, #{userId}, #{token}, #{expiredAt}, SYSDATE)
+    </insert>
+
+    <select id="findByToken" parameterType="String"
+            resultType="com.stock.dashboard.dto.RefreshTokenDto">
+        SELECT TOKEN_ID, USER_ID, TOKEN, EXPIRED_AT
+        FROM REFRESH_TOKEN
+        WHERE TOKEN = #{token}
+        AND EXPIRED_AT > SYSDATE
+    </select>
+
+    <delete id="deleteByUserId">
+        DELETE FROM REFRESH_TOKEN WHERE USER_ID = #{param1}
+    </delete>
+
+</mapper>

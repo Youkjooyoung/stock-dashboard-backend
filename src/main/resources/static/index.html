@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 대시보드</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<header>
+    <h1>📈 주식 대시보드</h1>
+    <div style="display:flex; align-items:center; gap:16px;">
+        <span id="user-email" style="font-size:13px; opacity:0.8;"></span>
+        <a id="login-btn" href="login.html" style="color:white; font-size:13px; text-decoration:none; padding:6px 14px; border:1px solid rgba(255,255,255,0.4); border-radius:6px;">로그인</a>
+        <button id="logout-btn" onclick="doLogout()" style="display:none; color:white; font-size:13px; background:rgba(255,255,255,0.15); border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">로그아웃</button>
+        <span id="update-time" style="font-size:13px; opacity:0.7;"></span>
+    </div>
+</header>
+
+<main>
+    <section class="summary-cards">
+        <div class="card">
+            <p class="card-label">총 종목 수</p>
+            <p class="card-value" id="total-items">-</p>
+        </div>
+        <div class="card">
+            <p class="card-label">최고 거래량 종목</p>
+            <p class="card-value" id="top-volume-nm">-</p>
+        </div>
+        <div class="card">
+            <p class="card-label">최고 거래량</p>
+            <p class="card-value" id="top-volume">-</p>
+        </div>
+        <div class="card">
+            <p class="card-label">기준일자</p>
+            <p class="card-value" id="base-date">-</p>
+        </div>
+    </section>
+
+    <section class="chart-section">
+        <div class="chart-box">
+            <h2>거래량 TOP 10</h2>
+            <canvas id="volumeChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <h2>종가 TOP 10</h2>
+            <canvas id="priceChart"></canvas>
+        </div>
+    </section>
+
+    <section class="table-section">
+        <div class="table-header">
+            <h2>전체 종목 시세</h2>
+            <input type="text" id="search-input" placeholder="종목명 검색...">
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>종목코드</th>
+                    <th>종목명</th>
+                    <th>시장</th>
+                    <th>시가</th>
+                    <th>종가</th>
+                    <th>고가</th>
+                    <th>저가</th>
+                    <th>거래량</th>
+                    <th>등락률</th>
+                    <th>즐겨찾기</th>
+                </tr>
+            </thead>
+            <tbody id="stock-table-body"></tbody>
+        </table>
+    </section>
+</main>
+
+<div id="modal" class="modal-overlay" style="display:none">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 id="modal-title">종목 상세</h2>
+            <button onclick="closeModal()">✕</button>
+        </div>
+        <canvas id="detailChart"></canvas>
+    </div>
+</div>
+
+<script src="js/main.js"></script>
+</body>
+</html>
