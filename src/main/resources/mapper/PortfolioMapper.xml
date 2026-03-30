@@ -5,12 +5,11 @@
 <mapper namespace="com.stock.dashboard.dao.PortfolioDao">
 
     <insert id="insertPortfolio" parameterType="com.stock.dashboard.dto.PortfolioDto">
-        INSERT INTO portfolio (portfolio_id, user_id, ticker, stock_name, quantity, buy_price, buy_date)
-        VALUES (portfolio_seq.NEXTVAL, #{userId}, #{ticker}, #{stockName}, #{quantity}, #{buyPrice}, #{buyDate})
+        INSERT INTO portfolio (user_id, ticker, stock_name, quantity, buy_price, buy_date)
+        VALUES (#{userId}, #{ticker}, #{stockName}, #{quantity}, #{buyPrice}, #{buyDate})
     </insert>
 
-    <select id="selectByUserId" parameterType="int"
-            resultType="com.stock.dashboard.dto.PortfolioDto">
+    <select id="selectByUserId" parameterType="int" resultType="com.stock.dashboard.dto.PortfolioDto">
         SELECT portfolio_id,
                user_id,
                ticker,
@@ -18,16 +17,16 @@
                quantity,
                buy_price,
                buy_date,
-               TO_CHAR(created_at, 'YYYY-MM-DD') AS created_at
-        FROM   portfolio
-        WHERE  user_id = #{userId}
-        ORDER  BY created_at DESC
+               DATE_FORMAT(created_at, '%Y-%m-%d') AS created_at
+        FROM portfolio
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC
     </select>
 
     <delete id="deletePortfolio">
         DELETE FROM portfolio
-        WHERE  portfolio_id = #{portfolioId}
-        AND    user_id      = #{userId}
+        WHERE portfolio_id = #{portfolioId}
+        AND user_id = #{userId}
     </delete>
 
 </mapper>
