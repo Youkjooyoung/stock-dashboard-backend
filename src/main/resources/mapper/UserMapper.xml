@@ -21,8 +21,7 @@
         WHERE USER_ID = #{param1} AND ITEM_ID = #{param2}
     </delete>
 
-    <select id="findByEmail" parameterType="String"
-        resultType="com.stock.dashboard.dto.UserDto">
+    <select id="findByEmail" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
                ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
@@ -31,8 +30,7 @@
         WHERE EMAIL = #{email}
     </select>
 
-    <select id="findByEmailVerifyToken" parameterType="String"
-        resultType="com.stock.dashboard.dto.UserDto">
+    <select id="findByEmailVerifyToken" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, EMAIL_VERIFIED
         FROM USERS
         WHERE EMAIL_VERIFY_TOKEN = #{token}
@@ -40,19 +38,19 @@
 
     <insert id="insertUser" parameterType="com.stock.dashboard.dto.UserDto">
         INSERT INTO USERS (
-            USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
+            EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
             ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
             EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN, CREATED_AT
         ) VALUES (
-            SEQ_USERS.NEXTVAL, #{email}, #{password}, #{name}, #{nickname}, #{phone},
+            #{email}, #{password}, #{name}, #{nickname}, #{phone},
             #{address}, #{addressDetail}, #{residentNo},
-            'N', #{emailVerifyToken}, SYSDATE
+            'N', #{emailVerifyToken}, NOW()
         )
     </insert>
 
     <insert id="insertWatchlist">
-        INSERT INTO USER_WATCHLIST (WATCH_ID, USER_ID, ITEM_ID, ADDED_AT)
-        VALUES (SEQ_USER_WATCHLIST.NEXTVAL, #{param1}, #{param2}, SYSDATE)
+        INSERT INTO USER_WATCHLIST (USER_ID, ITEM_ID, ADDED_AT)
+        VALUES (#{param1}, #{param2}, NOW())
     </insert>
 
     <update id="lockAccount" parameterType="String">

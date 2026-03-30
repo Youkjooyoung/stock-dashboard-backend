@@ -4,42 +4,37 @@
 
 <mapper namespace="com.stock.dashboard.dao.PriceAlertDao">
 
-	<insert id="insertAlert"
-		parameterType="com.stock.dashboard.dto.PriceAlertDto">
-		INSERT INTO PRICE_ALERT
-		(ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME, TARGET_PRICE, ALERT_TYPE,
-		IS_TRIGGERED, CREATED_AT)
-		VALUES
-		(SEQ_PRICE_ALERT.NEXTVAL, #{userId}, #{itemId}, #{ticker}, #{stockName}, #{targetPrice},
-		#{alertType}, 'N', SYSDATE)
-	</insert>
+    <insert id="insertAlert" parameterType="com.stock.dashboard.dto.PriceAlertDto">
+        INSERT INTO PRICE_ALERT
+        (USER_ID, ITEM_ID, TICKER, STOCK_NAME, TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT)
+        VALUES
+        (#{userId}, #{itemId}, #{ticker}, #{stockName}, #{targetPrice}, #{alertType}, 'N', NOW())
+    </insert>
 
-	<select id="selectByUserId"
-		resultType="com.stock.dashboard.dto.PriceAlertDto">
-		SELECT ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
-		TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT, TRIGGERED_AT
-		FROM PRICE_ALERT
-		WHERE USER_ID = #{param1}
-		ORDER BY CREATED_AT DESC
-	</select>
+    <select id="selectByUserId" resultType="com.stock.dashboard.dto.PriceAlertDto">
+        SELECT ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
+        TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT, TRIGGERED_AT
+        FROM PRICE_ALERT
+        WHERE USER_ID = #{param1}
+        ORDER BY CREATED_AT DESC
+    </select>
 
-	<select id="selectActiveAlerts"
-		resultType="com.stock.dashboard.dto.PriceAlertDto">
-		SELECT ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
-		TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT
-		FROM PRICE_ALERT
-		WHERE IS_TRIGGERED = 'N'
-	</select>
+    <select id="selectActiveAlerts" resultType="com.stock.dashboard.dto.PriceAlertDto">
+        SELECT ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
+        TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT
+        FROM PRICE_ALERT
+        WHERE IS_TRIGGERED = 'N'
+    </select>
 
-	<update id="triggerAlert">
-		UPDATE PRICE_ALERT
-		SET IS_TRIGGERED = 'Y', TRIGGERED_AT = SYSDATE
-		WHERE ALERT_ID = #{alertId}
-	</update>
+    <update id="triggerAlert">
+        UPDATE PRICE_ALERT
+        SET IS_TRIGGERED = 'Y', TRIGGERED_AT = NOW()
+        WHERE ALERT_ID = #{alertId}
+    </update>
 
-	<delete id="deleteAlert">
-		DELETE FROM PRICE_ALERT
-		WHERE ALERT_ID = #{alertId} AND USER_ID = #{userId}
-	</delete>
+    <delete id="deleteAlert">
+        DELETE FROM PRICE_ALERT
+        WHERE ALERT_ID = #{alertId} AND USER_ID = #{userId}
+    </delete>
 
 </mapper>

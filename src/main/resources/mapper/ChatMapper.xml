@@ -5,19 +5,16 @@
 <mapper namespace="com.stock.dashboard.dao.ChatDao">
 
     <insert id="insertMessage" parameterType="com.stock.dashboard.dto.ChatMessageDto">
-        INSERT INTO CHAT_MESSAGE (MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT)
-        VALUES (SEQ_CHAT_MESSAGE.NEXTVAL, #{ticker}, #{userEmail}, #{nickname}, #{content}, SYSDATE)
+        INSERT INTO CHAT_MESSAGE (TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT)
+        VALUES (#{ticker}, #{userEmail}, #{nickname}, #{content}, NOW())
     </insert>
 
     <select id="selectRecentMessages" resultType="com.stock.dashboard.dto.ChatMessageDto">
         SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT
-        FROM (
-            SELECT * FROM CHAT_MESSAGE
-            WHERE TICKER = #{ticker}
-            ORDER BY CREATED_AT DESC
-        )
-        WHERE ROWNUM &lt;= #{limit}
-        ORDER BY CREATED_AT ASC
+        FROM CHAT_MESSAGE
+        WHERE TICKER = #{ticker}
+        ORDER BY CREATED_AT DESC
+        LIMIT #{limit}
     </select>
 
 </mapper>
