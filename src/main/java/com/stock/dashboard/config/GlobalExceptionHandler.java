@@ -18,6 +18,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
     }
 
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<Map<String, String>> handleRuntime(RuntimeException e) {
+        log.warn("[경고] 처리된 예외: {}", e.getMessage());
+        return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+    }
+
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<Map<String, String>> handleSecurity(SecurityException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", e.getMessage()));
