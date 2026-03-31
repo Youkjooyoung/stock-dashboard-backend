@@ -6,7 +6,7 @@
 
     <delete id="deleteSocial">
         DELETE FROM USER_SOCIAL
-        WHERE USER_ID = #{param1} AND PROVIDER = #{param2}
+        WHERE USER_ID = #{userId} AND PROVIDER = #{provider}
     </delete>
 
     <insert id="insertSocial" parameterType="com.stock.dashboard.dto.UserSocialDto">
@@ -18,6 +18,12 @@
         SELECT SOCIAL_ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
         FROM USER_SOCIAL
         WHERE USER_ID = #{userId}
+    </select>
+
+    <select id="checkSocialLink" resultType="int">
+        SELECT COUNT(*)
+        FROM USER_SOCIAL
+        WHERE USER_ID = #{userId} AND PROVIDER = #{provider}
     </select>
 
 </mapper>

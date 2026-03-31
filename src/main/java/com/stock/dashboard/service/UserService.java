@@ -49,13 +49,12 @@ public class UserService {
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${app.base.url}")          private String appBaseUrl;
-    @Value("${kakao.client-id}")      private String kakaoClientId;
-    @Value("${kakao.redirect-uri}")   private String kakaoRedirectUri;
-    @Value("${google.client-id}")     private String googleClientId;
-    @Value("${google.client-secret}") private String googleClientSecret;
-    @Value("${google.redirect-uri}")  private String googleRedirectUri;
-
-    // ===== CREATE =====
+    @Value("${kakao.client-id}")       private String kakaoClientId;
+    @Value("${kakao.client-secret}")   private String kakaoClientSecret;
+    @Value("${kakao.redirect-uri}")    private String kakaoRedirectUri;
+    @Value("${google.client-id}")      private String googleClientId;
+    @Value("${google.client-secret}")  private String googleClientSecret;
+    @Value("${google.redirect-uri}")   private String googleRedirectUri;
 
     public void signup(UserDto dto) throws Exception {
         validator.validateEmail(dto.getEmail());
@@ -113,8 +112,8 @@ public class UserService {
         HttpClient client = HttpClient.newHttpClient();
 
         String tokenBody = String.format(
-            "grant_type=authorization_code&client_id=%s&redirect_uri=%s&code=%s",
-            kakaoClientId, kakaoRedirectUri, code
+            "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
+            kakaoClientId, kakaoClientSecret, kakaoRedirectUri, code
         );
 
         String kakaoToken = fetchAccessToken(client,
@@ -140,17 +139,26 @@ public class UserService {
             code, googleClientId, googleClientSecret, googleRedirectUri
         );
 
-        String googleToken = fetchAccessToken(client,
-            "https://oauth2.googleapis.com/token", tokenBody);
+        String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
+        JsonNode userJson = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
 
-        JsonNode userJson = fetchUserInfo(client,
-            "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
+        String email = "";
+        if (userJson.has("email")) {
+            email = userJson.get("email").asText();
+        }
 
-        String email    = userJson.path("email").asText();
-        String nickname = userJson.path("name").asText();
+        if (email == null || email.isEmpty()) {
+            String id = userJson.has("id") ? userJson.get("id").asText() : String.valueOf(System.currentTimeMillis());
+            email = "google_" + id + "@google.com";
+        }
 
-        if (email.isEmpty())    email    = "google_" + userJson.path("id").asText() + "@google.com";
-        if (nickname.isEmpty()) nickname = "구글 사용자";
+        String nickname = "";
+        if (userJson.has("name")) {
+            nickname = userJson.get("name").asText();
+        }
+        if (nickname == null || nickname.isEmpty()) {
+            nickname = "구글 사용자";
+        }
 
         return processSocialLogin(email, nickname, "GOOGLE_");
     }
@@ -170,6 +178,10 @@ public class UserService {
         String email = userJson.path("email").asText();
         if (email.isEmpty()) email = "google_" + userJson.path("id").asText() + "@google.com";
 
+        if (userSocialDao.checkSocialLink(user.getUserId(), "GOOGLE") > 0) {
+            return;
+        }
+
         UserSocialDto dto = new UserSocialDto();
         dto.setUserId(user.getUserId());
         dto.setProvider("GOOGLE");
@@ -182,8 +194,8 @@ public class UserService {
         HttpClient client = HttpClient.newHttpClient();
 
         String tokenBody = String.format(
-            "grant_type=authorization_code&client_id=%s&redirect_uri=%s&code=%s",
-            kakaoClientId, appBaseUrl + "/oauth/link", code
+            "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
+            kakaoClientId, kakaoClientSecret, appBaseUrl + "/oauth/link", code
         );
 
         String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
@@ -191,6 +203,10 @@ public class UserService {
 
         String email = userJson.path("kakao_account").path("email").asText();
         if (email.isEmpty()) email = "kakao_" + userJson.path("id").asText() + "@kakao.com";
+
+        if (userSocialDao.checkSocialLink(user.getUserId(), "KAKAO") > 0) {
+            return;
+        }
 
         UserSocialDto dto = new UserSocialDto();
         dto.setUserId(user.getUserId());
@@ -230,8 +246,6 @@ public class UserService {
         return true;
     }
 
-    // ===== READ =====
-
     public boolean checkEmailExists(String email) {
         return userDao.checkEmailExists(email) > 0;
     }
@@ -251,7 +265,10 @@ public class UserService {
     public Map<String, String> getUserInfo(String token) {
         UserDto user = getUserFromToken(token);
         Map<String, String> info = new HashMap<>();
+        
         info.put("email", user.getEmail());
+        info.put("nickname", user.getNickname());
+        
         String dateStr = "";
         if (user.getCreatedAt() != null) {
             dateStr = new SimpleDateFormat("yyyy-MM-dd").format(user.getCreatedAt());
@@ -275,8 +292,6 @@ public class UserService {
         dto.setProvider(dto.getProvider().toUpperCase());
         userSocialDao.insertSocial(dto);
     }
-
-    // ===== UPDATE =====
 
     public void changePassword(String token, String currentPassword, String newPassword) {
         validator.validatePassword(newPassword);
@@ -304,8 +319,6 @@ public class UserService {
         userDao.updateNickname(user);
     }
 
-    // ===== DELETE =====
-
     public void deleteAccount(String token) {
         UserDto user = getUserFromToken(token);
         refreshTokenDao.deleteByUserId(user.getUserId());
@@ -320,8 +333,6 @@ public class UserService {
         userSocialDao.deleteSocial(getUserFromToken(token).getUserId(), provider.toUpperCase());
     }
 
-    // ===== Private Helpers =====
-
     private String fetchAccessToken(HttpClient client, String url, String body) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -329,7 +340,12 @@ public class UserService {
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
         HttpResponse<String> res = client.send(request, HttpResponse.BodyHandlers.ofString());
-        return new ObjectMapper().readTree(res.body()).path("access_token").asText();
+        
+        JsonNode node = new ObjectMapper().readTree(res.body());
+        if (!node.has("access_token")) {
+            throw new RuntimeException("API 응답 에러: " + res.body());
+        }
+        return node.get("access_token").asText();
     }
 
     private JsonNode fetchUserInfo(HttpClient client, String url, String accessToken) throws Exception {
