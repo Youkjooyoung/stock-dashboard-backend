@@ -34,6 +34,8 @@ public interface UserDao {
 
 	void updateEmailVerified(String token);
 
+	void updateEmailVerifyToken(UserDto dto);
+
 	void updateLoginFail(String email);
 
 	void updateNickname(UserDto dto);

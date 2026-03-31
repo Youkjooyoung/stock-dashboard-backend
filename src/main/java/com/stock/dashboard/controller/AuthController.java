@@ -48,6 +48,23 @@ public class AuthController {
         response.sendRedirect(buildOAuthRedirect(userService.googleLogin(code), "google"));
     }
 
+    @GetMapping("/google/link")
+    public void googleLink(@RequestParam String token, HttpServletResponse response) throws Exception {
+        String state = URLEncoder.encode("google:" + token, StandardCharsets.UTF_8);
+        response.sendRedirect(String.format(
+            "https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile&state=%s",
+            googleClientId, appBaseUrl + "/oauth/link", state
+        ));
+    }
+
+    @GetMapping("/google/link/callback")
+    public ResponseEntity<Map<String, Object>> googleLinkCallback(
+            @RequestParam String code,
+            @RequestParam String token) throws Exception {
+        userService.linkGoogle(token, code);
+        return ResponseEntity.ok(Map.<String, Object>of("success", true));
+    }
+
     @GetMapping("/google/login")
     public void googleLogin(HttpServletResponse response) throws Exception {
         response.sendRedirect(String.format(
@@ -59,6 +76,23 @@ public class AuthController {
     @GetMapping("/kakao/callback")
     public void kakaoCallback(@RequestParam String code, HttpServletResponse response) throws Exception {
         response.sendRedirect(buildOAuthRedirect(userService.kakaoLogin(code), "kakao"));
+    }
+
+    @GetMapping("/kakao/link")
+    public void kakaoLink(@RequestParam String token, HttpServletResponse response) throws Exception {
+        String state = URLEncoder.encode("kakao:" + token, StandardCharsets.UTF_8);
+        response.sendRedirect(String.format(
+            "https://kauth.kakao.com/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code&state=%s",
+            kakaoClientId, appBaseUrl + "/oauth/link", state
+        ));
+    }
+
+    @GetMapping("/kakao/link/callback")
+    public ResponseEntity<Map<String, Object>> kakaoLinkCallback(
+            @RequestParam String code,
+            @RequestParam String token) throws Exception {
+        userService.linkKakao(token, code);
+        return ResponseEntity.ok(Map.<String, Object>of("success", true));
     }
 
     @GetMapping("/kakao/exchange")
@@ -102,6 +136,12 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody UserDto dto) {
         return ResponseEntity.ok(userService.register(dto));
+    }
+
+    @PostMapping("/resend-verify")
+    public ResponseEntity<Map<String, String>> resendVerify(@RequestBody Map<String, String> body) throws Exception {
+        userService.resendVerifyEmail(body.get("email"));
+        return ResponseEntity.ok(Map.of("message", "인증 메일을 재발송했습니다."));
     }
 
     @PostMapping("/signup")

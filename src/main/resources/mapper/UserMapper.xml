@@ -80,6 +80,12 @@
         WHERE EMAIL_VERIFY_TOKEN = #{token}
     </update>
 
+    <update id="updateEmailVerifyToken" parameterType="com.stock.dashboard.dto.UserDto">
+        UPDATE USERS
+        SET EMAIL_VERIFY_TOKEN = #{emailVerifyToken}
+        WHERE USER_ID = #{userId}
+    </update>
+
     <update id="updateLoginFail" parameterType="String">
         UPDATE USERS
         SET LOGIN_FAIL_CNT = LOGIN_FAIL_CNT + 1,
