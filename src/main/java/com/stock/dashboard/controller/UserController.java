@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.stock.dashboard.dto.StockPriceDto;
+import com.stock.dashboard.dto.UserSocialDto;
 import com.stock.dashboard.service.UserService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -71,6 +72,27 @@ public class UserController {
     @GetMapping("/info")
     public ResponseEntity<Map<String, String>> getUserInfo(@RequestHeader("Authorization") String token) {
         return ResponseEntity.ok(userService.getUserInfo(extractToken(token)));
+    }
+
+    @GetMapping("/social")
+    public ResponseEntity<List<UserSocialDto>> getSocialLinks(@RequestHeader("Authorization") String token) {
+        return ResponseEntity.ok(userService.getSocialLinks(extractToken(token)));
+    }
+
+    @PostMapping("/social/link")
+    public ResponseEntity<String> linkSocial(
+            @RequestHeader("Authorization") String token,
+            @RequestBody UserSocialDto dto) {
+        userService.saveSocialLink(extractToken(token), dto);
+        return ResponseEntity.ok("연동 완료");
+    }
+
+    @DeleteMapping("/social/unlink/{provider}")
+    public ResponseEntity<String> unlinkSocial(
+            @RequestHeader("Authorization") String token,
+            @PathVariable String provider) {
+        userService.unlinkSocial(extractToken(token), provider);
+        return ResponseEntity.ok("연동 해제 완료");
     }
 
     @GetMapping("/nickname/check")

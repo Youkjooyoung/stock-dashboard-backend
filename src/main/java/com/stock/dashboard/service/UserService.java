@@ -22,9 +22,11 @@ import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.dao.RefreshTokenDao;
 import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
+import com.stock.dashboard.dao.UserSocialDao;
 import com.stock.dashboard.dto.RefreshTokenDto;
 import com.stock.dashboard.dto.StockPriceDto;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.dto.UserSocialDto;
 import com.stock.dashboard.util.AesEncryptor;
 
 import lombok.RequiredArgsConstructor;
@@ -43,8 +45,10 @@ public class UserService {
     private final RefreshTokenDao       refreshTokenDao;
     private final StockDao              stockDao;
     private final UserDao               userDao;
+    private final UserSocialDao         userSocialDao;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    @Value("${app.base.url}")          private String appBaseUrl;
     @Value("${kakao.client-id}")      private String kakaoClientId;
     @Value("${kakao.redirect-uri}")   private String kakaoRedirectUri;
     @Value("${google.client-id}")     private String googleClientId;
@@ -91,6 +95,8 @@ public class UserService {
             throw new RuntimeException("이메일 또는 비밀번호가 틀렸습니다.");
         if ("Y".equals(user.getAccountLocked()))
             throw new RuntimeException("로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
+        if (!"Y".equals(user.getEmailVerified()))
+            throw new RuntimeException("이메일 인증이 필요합니다.");
 
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
             userDao.updateLoginFail(dto.getEmail());
@@ -149,6 +155,50 @@ public class UserService {
         return processSocialLogin(email, nickname, "GOOGLE_");
     }
 
+    public void linkGoogle(String token, String code) throws Exception {
+        UserDto user = getUserFromToken(token);
+        HttpClient client = HttpClient.newHttpClient();
+
+        String tokenBody = String.format(
+            "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
+            code, googleClientId, googleClientSecret, appBaseUrl + "/oauth/link"
+        );
+
+        String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
+        JsonNode userJson  = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
+
+        String email = userJson.path("email").asText();
+        if (email.isEmpty()) email = "google_" + userJson.path("id").asText() + "@google.com";
+
+        UserSocialDto dto = new UserSocialDto();
+        dto.setUserId(user.getUserId());
+        dto.setProvider("GOOGLE");
+        dto.setProviderEmail(email);
+        userSocialDao.insertSocial(dto);
+    }
+
+    public void linkKakao(String token, String code) throws Exception {
+        UserDto user = getUserFromToken(token);
+        HttpClient client = HttpClient.newHttpClient();
+
+        String tokenBody = String.format(
+            "grant_type=authorization_code&client_id=%s&redirect_uri=%s&code=%s",
+            kakaoClientId, appBaseUrl + "/oauth/link", code
+        );
+
+        String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
+        JsonNode userJson = fetchUserInfo(client, "https://kapi.kakao.com/v2/user/me", kakaoToken);
+
+        String email = userJson.path("kakao_account").path("email").asText();
+        if (email.isEmpty()) email = "kakao_" + userJson.path("id").asText() + "@kakao.com";
+
+        UserSocialDto dto = new UserSocialDto();
+        dto.setUserId(user.getUserId());
+        dto.setProvider("KAKAO");
+        dto.setProviderEmail(email);
+        userSocialDao.insertSocial(dto);
+    }
+
     public Map<String, String> refresh(String refreshToken) {
         if (!jwtUtil.validateRefreshToken(refreshToken))
             throw new RuntimeException("유효하지 않은 Refresh Token입니다.");
@@ -194,6 +244,10 @@ public class UserService {
         return userDao.findByEmail(email);
     }
 
+    public List<UserSocialDto> getSocialLinks(String token) {
+        return userSocialDao.selectByUserId(getUserFromToken(token).getUserId());
+    }
+
     public Map<String, String> getUserInfo(String token) {
         UserDto user = getUserFromToken(token);
         Map<String, String> info = new HashMap<>();
@@ -216,6 +270,12 @@ public class UserService {
         return stockDao.selectLatestPricesByItemIds(itemIds);
     }
 
+    public void saveSocialLink(String token, UserSocialDto dto) {
+        dto.setUserId(getUserFromToken(token).getUserId());
+        dto.setProvider(dto.getProvider().toUpperCase());
+        userSocialDao.insertSocial(dto);
+    }
+
     // ===== UPDATE =====
 
     public void changePassword(String token, String currentPassword, String newPassword) {
@@ -225,6 +285,16 @@ public class UserService {
             throw new RuntimeException("현재 비밀번호가 틀렸습니다.");
         user.setPassword(passwordEncoder.encode(newPassword));
         userDao.updatePassword(user);
+    }
+
+    public void resendVerifyEmail(String email) throws Exception {
+        UserDto user = userDao.findByEmail(email);
+        if (user == null) throw new RuntimeException("존재하지 않는 이메일입니다.");
+        if ("Y".equals(user.getEmailVerified())) throw new RuntimeException("이미 인증된 이메일입니다.");
+        String token = UUID.randomUUID().toString();
+        user.setEmailVerifyToken(token);
+        userDao.updateEmailVerifyToken(user);
+        emailService.sendVerificationEmail(email, token);
     }
 
     public void updateNickname(String token, String nickname) {
@@ -244,6 +314,10 @@ public class UserService {
 
     public void removeWatchlist(String token, int itemId) {
         userDao.deleteWatchlist(getUserFromToken(token).getUserId(), itemId);
+    }
+
+    public void unlinkSocial(String token, String provider) {
+        userSocialDao.deleteSocial(getUserFromToken(token).getUserId(), provider.toUpperCase());
     }
 
     // ===== Private Helpers =====

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.stock.dashboard.dao.UserSocialDao">
+
+    <delete id="deleteSocial">
+        DELETE FROM USER_SOCIAL
+        WHERE USER_ID = #{param1} AND PROVIDER = #{param2}
+    </delete>
+
+    <insert id="insertSocial" parameterType="com.stock.dashboard.dto.UserSocialDto">
+        INSERT INTO USER_SOCIAL (USER_ID, PROVIDER, PROVIDER_EMAIL)
+        VALUES (#{userId}, #{provider}, #{providerEmail})
+    </insert>
+
+    <select id="selectByUserId" resultType="com.stock.dashboard.dto.UserSocialDto">
+        SELECT SOCIAL_ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
+        FROM USER_SOCIAL
+        WHERE USER_ID = #{userId}
+    </select>
+
+</mapper>
