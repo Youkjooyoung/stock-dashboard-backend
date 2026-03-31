@@ -13,4 +13,5 @@ public interface UserSocialDao {
     void insertSocial(UserSocialDto dto);
     List<UserSocialDto> selectByUserId(int userId);
     int checkSocialLink(@Param("userId") int userId, @Param("provider") String provider);
+    UserSocialDto selectByProviderAndEmail(@Param("provider") String provider, @Param("providerEmail") String providerEmail);
 }

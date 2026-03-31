@@ -24,7 +24,9 @@ public class SecurityConfig {
 
     private static final List<String> ALLOWED_ORIGINS = List.of(
         "http://localhost:5173",
-        "http://localhost:5174"
+        "http://localhost:5174",
+        "https://jyyouk.shop",
+        "https://api.jyyouk.shop"
     );
     private static final List<String> ALLOWED_METHODS = List.of(
         "GET", "POST", "PUT", "DELETE", "OPTIONS"

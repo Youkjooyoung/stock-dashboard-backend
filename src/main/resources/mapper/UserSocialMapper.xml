@@ -26,4 +26,9 @@
         WHERE USER_ID = #{userId} AND PROVIDER = #{provider}
     </select>
 
+    <select id="selectByProviderAndEmail" resultType="com.stock.dashboard.dto.UserSocialDto">
+        SELECT SOCIAL_ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
+        FROM USER_SOCIAL
+        WHERE PROVIDER = #{provider} AND PROVIDER_EMAIL = #{providerEmail}
+    </select>    
 </mapper>

@@ -101,4 +101,7 @@
         UPDATE USERS SET PASSWORD = #{password} WHERE USER_ID = #{userId}
     </update>
 
+    <select id="findById" resultType="com.stock.dashboard.dto.UserDto">
+   	 SELECT * FROM USERS WHERE USER_ID = #{userId}
+    </select>
 </mapper>

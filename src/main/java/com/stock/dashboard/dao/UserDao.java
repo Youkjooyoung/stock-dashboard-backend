@@ -41,4 +41,6 @@ public interface UserDao {
 	void updateNickname(UserDto dto);
 
 	void updatePassword(UserDto dto);
+
+	UserDto findById(long userId);
 }
