@@ -60,7 +60,7 @@
     <update id="resetLoginFail" parameterType="String">
         UPDATE USERS
         SET LOGIN_FAIL_CNT = 0, ACCOUNT_LOCKED = 'N'
-        WHERE EMAIL = #{email}
+	WHERE EMAIL = #{_parameter}
     </update>
 
     <select id="selectUserIdsByWatchTicker" resultType="int">
@@ -90,7 +90,7 @@
         UPDATE USERS
         SET LOGIN_FAIL_CNT = LOGIN_FAIL_CNT + 1,
             ACCOUNT_LOCKED = CASE WHEN LOGIN_FAIL_CNT + 1 >= 5 THEN 'Y' ELSE 'N' END
-        WHERE EMAIL = #{email}
+	WHERE EMAIL = #{_parameter}
     </update>
 
     <update id="updateNickname" parameterType="com.stock.dashboard.dto.UserDto">
