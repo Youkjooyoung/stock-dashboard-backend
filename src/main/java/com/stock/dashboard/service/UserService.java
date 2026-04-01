@@ -46,6 +46,7 @@ public class UserService {
     private final StockDao              stockDao;
     private final UserDao               userDao;
     private final UserSocialDao         userSocialDao;
+    private final S3Service             s3Service;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${app.base.url}")          private String appBaseUrl;
@@ -396,5 +397,32 @@ public class UserService {
         tokens.put("email",    email);
         tokens.put("nickname", nickname);
         return tokens;
+    }
+    public long getUserIdFromToken(String token) {
+        return getUserFromToken(token).getUserId();
+    }
+
+    public String updateProfileImage(Long userId, org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+        validateImageFile(file);
+        String currentImageUrl = userDao.findProfileImageUrl(userId);
+        if (currentImageUrl != null && currentImageUrl.contains("amazonaws.com")) {
+            s3Service.delete(currentImageUrl);
+        }
+        String newImageUrl = s3Service.upload(file, "profiles");
+        userDao.updateProfileImageUrl(userId, newImageUrl);
+        return newImageUrl;
+    }
+
+    private void validateImageFile(org.springframework.web.multipart.MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("이미지 파일이 없습니다.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new RuntimeException("이미지 파일만 업로드 가능합니다.");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new RuntimeException("파일 크기는 5MB 이하만 가능합니다.");
+        }
     }
 }

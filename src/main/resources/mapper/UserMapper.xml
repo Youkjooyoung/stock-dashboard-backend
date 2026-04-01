@@ -104,4 +104,12 @@
     <select id="findById" resultType="com.stock.dashboard.dto.UserDto">
    	 SELECT * FROM USERS WHERE USER_ID = #{userId}
     </select>
+
+    <select id="findProfileImageUrl" parameterType="long" resultType="string">
+	 SELECT profile_image_url FROM USERS WHERE USER_ID = #{userId}
+    </select>
+
+    <update id="updateProfileImageUrl">
+         UPDATE USERS SET profile_image_url = #{imageUrl} WHERE USER_ID = #{userId}
+    </update>
 </mapper>

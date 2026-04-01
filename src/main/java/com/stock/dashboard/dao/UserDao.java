@@ -43,4 +43,8 @@ public interface UserDao {
 	void updatePassword(UserDto dto);
 
 	UserDto findById(long userId);
+
+	String findProfileImageUrl(long userId);
+
+        void updateProfileImageUrl(@org.apache.ibatis.annotations.Param("userId") long userId, @org.apache.ibatis.annotations.Param("imageUrl") String imageUrl);
 }

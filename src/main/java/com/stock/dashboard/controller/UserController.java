@@ -138,4 +138,14 @@ public class UserController {
     private String extractToken(String header) {
         return header.replace("Bearer ", "");
     }
+
+    @PutMapping("/profile-image")
+    public ResponseEntity<Map<String, String>> updateProfileImage(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @RequestHeader("Authorization") String token) throws java.io.IOException {
+        String accessToken = token.replace("Bearer ", "");
+	Long userId = userService.getUserIdFromToken(accessToken);
+        String imageUrl = userService.updateProfileImage(userId, file);
+        return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
+    }
 }
