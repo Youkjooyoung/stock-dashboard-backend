@@ -22,6 +22,21 @@ public class AdminService {
     private final JwtUtil     jwtUtil;
     private final UserDao     userDao;
 
+    public List<Map<String, Object>> getAllAlerts(String token) {
+        checkAdmin(token);
+        return adminDao.selectAllAlerts();
+    }
+
+    public List<Map<String, Object>> getAllChats(String token) {
+        checkAdmin(token);
+        return adminDao.selectAllChats();
+    }
+
+    public List<Map<String, Object>> getAllStocks(String token) {
+        checkAdmin(token);
+        return adminDao.selectAllStocks();
+    }
+
     public List<AdminUserDto> getAllUsers(String token) {
         checkAdmin(token);
         return adminDao.selectAllUsers();

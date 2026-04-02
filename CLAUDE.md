@@ -17,6 +17,8 @@
 - PortOne V1 (본인인증)
 - Resend API (이메일 인증)
 - AES-256 (주민등록번호 암호화)
+- AWS S3 (프로필 이미지)
+- Anthropic API (AI 분석)
 
 **Frontend**
 - React 18, Vite
@@ -36,30 +38,130 @@
 
 ## Project Structure
 
-**Backend** (`stock-dashboard`)
+**Backend**
 ```
 src/main/java/com/stock/dashboard/
-├── controller/     # AuthController, UserController, StockController ...
-├── service/        # UserService, StockService ...
-├── dao/            # MyBatis Mapper 인터페이스
-├── dto/            # DTO 클래스
-└── config/         # SecurityConfig, WebSocketConfig ...
+├── config/
+│   ├── CacheConfig.java
+│   └── GlobalExceptionHandler.java
+├── controller/
+│   ├── AdminController.java
+│   ├── AiAnalysisController.java
+│   ├── AuthController.java
+│   ├── ChatController.java
+│   ├── NewsController.java
+│   ├── PortfolioController.java
+│   ├── PriceAlertController.java
+│   ├── StockController.java
+│   └── UserController.java
+├── dao/
+│   ├── AdminDao.java
+│   ├── ChatDao.java
+│   ├── PortfolioDao.java
+│   ├── PriceAlertDao.java
+│   ├── RefreshTokenDao.java
+│   ├── StockDao.java
+│   ├── UserDao.java
+│   └── UserSocialDao.java
+├── dto/
+│   ├── AdminUserDto.java
+│   ├── ChatMessageDto.java
+│   ├── NewsDto.java
+│   ├── PortfolioDto.java
+│   ├── PriceAlertDto.java
+│   ├── RefreshTokenDto.java
+│   ├── StockItemDto.java
+│   ├── StockPriceDto.java
+│   ├── UserDto.java
+│   └── UserSocialDto.java
+├── scheduler/
+│   └── StockScheduler.java
+├── service/
+│   ├── AdminService.java
+│   ├── AiAnalysisService.java
+│   ├── EmailService.java
+│   ├── NewsService.java
+│   ├── PortfolioService.java
+│   ├── PortoneService.java
+│   ├── PriceAlertService.java
+│   ├── S3Service.java
+│   ├── StockService.java
+│   └── UserService.java
+├── util/
+│   └── AesEncryptor.java
+├── InputValidator.java
+├── JwtAuthFilter.java
+├── JwtUtil.java
+├── SecurityConfig.java
+└── WebSocketConfig.java
 
 src/main/resources/
-├── mapper/         # MyBatis XML
-└── application.properties
+├── mapper/
+│   ├── AdminMapper.xml
+│   ├── ChatMapper.xml
+│   ├── PortfolioMapper.xml
+│   ├── PriceAlertMapper.xml
+│   ├── RefreshTokenMapper.xml
+│   ├── StockMapper.xml
+│   ├── UserMapper.xml
+│   └── UserSocialMapper.xml
+├── application.properties
+├── application-local.properties   (gitignore)
+└── application-prod.properties    (gitignore)
 ```
 
-**Frontend** (`stock-dashboard-react`)
+**Frontend**
 ```
 src/
-├── api/            # axiosInstance.js
-├── components/     # 재사용 컴포넌트
-├── hooks/          # useQueries.js (React Query 훅)
-├── pages/          # 페이지 컴포넌트
-├── router/         # index.jsx
-├── store/          # authStore.js (Zustand)
-└── styles/         # CSS Modules (pages/, components/)
+├── api/
+│   ├── axiosInstance.js
+│   └── profileApi.js
+├── components/
+│   ├── AddressSearch.jsx
+│   ├── AiAnalysis.jsx
+│   ├── AlertNotification.jsx
+│   ├── AlertSetter.jsx
+│   ├── AppLayout.jsx
+│   ├── CandlestickChart.jsx
+│   ├── EmailVerifyStep.jsx
+│   ├── ErrorBoundary.jsx
+│   ├── Header.jsx
+│   ├── NewsSection.jsx
+│   ├── PhoneVerifyStep.jsx
+│   ├── ProfileImageUpload.jsx
+│   ├── SecureKeypad.jsx
+│   ├── SignupFormStep.jsx
+│   ├── StockCharts.jsx
+│   ├── StockChat.jsx
+│   ├── StockListSkeleton.jsx
+│   ├── StockModal.jsx
+│   ├── StockModalSkeleton.jsx
+│   ├── StockTable.jsx
+│   ├── StockTicker.jsx
+│   ├── SummaryCards.jsx
+│   └── Toast.jsx
+├── hooks/
+│   └── useQueries.js
+├── pages/
+│   ├── AdminPage.jsx
+│   ├── ComparePage.jsx
+│   ├── DashboardPage.jsx
+│   ├── ForgotPasswordPage.jsx
+│   ├── LoginPage.jsx
+│   ├── OAuthCallbackPage.jsx
+│   ├── OAuthLinkCallbackPage.jsx
+│   ├── ProfilePage.jsx
+│   ├── ResetPasswordPage.jsx
+│   ├── SignupPage.jsx
+│   └── VerifyEmailPage.jsx
+├── router/
+│   └── index.jsx
+├── store/
+│   └── authStore.js
+└── styles/
+    ├── global.css
+    ├── components/
+    └── pages/
 ```
 
 ---
@@ -73,7 +175,7 @@ src/
 
 **로컬 개발**
 - Frontend: `http://localhost:5173`
-- Backend: `https://localhost:8443`
+- Backend: `http://localhost:8080` (로컬), `https://localhost:8443` (SSL)
 - DB: `localhost:3306/stock_dashboard`
 
 **환경변수 파일**
@@ -136,48 +238,122 @@ mysql -u root -p stock_dashboard
 - DTO는 @Data 롬복 사용
 
 **Frontend (React)**
-- CSS Modules 사용 (`styles.className`)
-- 전역 스타일은 `index.css`, 컴포넌트별 스타일은 `모듈명.module.css`
+- CSS Modules 사용 (`styles.className`), 인라인 스타일 금지
+- 전역 스타일은 `global.css`, 컴포넌트별 스타일은 `모듈명.module.css`
 - React Query 훅은 `useQueries.js`에 집중 관리
 - Zustand store는 `store/` 디렉토리
 
 ---
 
-## DB Schema (주요 테이블)
+## DB Schema
 
 ```sql
-USERS           -- 회원 (EMAIL, PASSWORD, NAME, NICKNAME ...)
-USER_SOCIAL     -- 소셜 연동 (user_id, provider, provider_email)
-STOCK_ITEM      -- 종목 기본정보
-STOCK_PRICE     -- 일별 시세
-USER_WATCHLIST  -- 즐겨찾기
-PORTFOLIO       -- 포트폴리오
-PRICE_ALERT     -- 목표가 알림
-REFRESH_TOKEN   -- JWT 리프레시 토큰
-CHAT_MESSAGE    -- AI 채팅 이력
+USERS
+  USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
+  EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
+  ACCOUNT_LOCKED, LOGIN_FAIL_CNT,
+  ROLE,           -- USER / ADMIN
+  PW_RESET_TOKEN, PW_RESET_EXPIRES,
+  PROFILE_IMAGE_URL, CREATED_AT
+
+USER_SOCIAL
+  ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
+
+STOCK_ITEM
+  ITEM_ID, TICKER, ITEM_NM, MARKET, CREATED_AT
+
+STOCK_PRICE
+  PRICE_ID, ITEM_ID, OPEN_PRICE, CLOSE_PRICE,
+  HIGH_PRICE, LOW_PRICE, VOLUME, TRADE_DATE
+
+USER_WATCHLIST
+  WATCHLIST_ID, USER_ID, ITEM_ID, CREATED_AT
+
+PORTFOLIO
+  PORTFOLIO_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
+  BUY_PRICE, QUANTITY, BUY_DATE, CREATED_AT
+
+PRICE_ALERT
+  ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
+  TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED,
+  CREATED_AT, TRIGGERED_AT
+
+REFRESH_TOKEN
+  ID, USER_ID, TOKEN, EXPIRES_AT, CREATED_AT
+
+CHAT_MESSAGE
+  MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT
 ```
 
 ---
 
-## API Endpoints (주요)
+## API Endpoints
 
 ```
+# 인증
 POST /api/auth/login
 POST /api/auth/signup
+POST /api/auth/logout
 POST /api/auth/refresh
+POST /api/auth/portone/verify      # PortOne 본인인증
+POST /api/auth/forgot-password     # 비밀번호 재설정 메일 발송
+POST /api/auth/reset-password      # 토큰으로 비밀번호 변경
+
+# OAuth2 소셜 로그인
 GET  /api/auth/kakao/login
 GET  /api/auth/google/login
-GET  /api/auth/kakao/link       # 소셜 연동용
-GET  /api/auth/google/link      # 소셜 연동용
+GET  /api/auth/kakao/callback
+GET  /api/auth/google/callback
 
-GET  /api/user/social           # 연동 목록 조회
-POST /api/user/social/link      # 연동
-DEL  /api/user/social/unlink/{provider}  # 연동 해제
+# 소셜 계정 연동
+GET  /api/auth/kakao/link
+GET  /api/auth/google/link
+GET  /api/auth/kakao/link/callback
+GET  /api/auth/google/link/callback
 
+# 사용자
+GET  /api/user/profile
+PUT  /api/user/profile
+POST /api/user/profile-image       # S3 이미지 업로드
+GET  /api/user/social              # 연동 목록
+POST /api/user/social/link
+DEL  /api/user/social/unlink/{provider}
+
+# 주식
 GET  /api/stock/prices
-GET  /api/user/watchlist
-GET  /api/user/portfolio
-GET  /api/alert
+GET  /api/stock/prices/{ticker}
+
+# 즐겨찾기
+GET    /api/user/watchlist
+POST   /api/user/watchlist
+DELETE /api/user/watchlist/{itemId}
+
+# 포트폴리오
+GET    /api/user/portfolio
+POST   /api/user/portfolio
+PUT    /api/user/portfolio/{id}
+DELETE /api/user/portfolio/{id}
+
+# 목표가 알림
+GET    /api/alert
+POST   /api/alert
+DELETE /api/alert/{alertId}
+
+# AI / 뉴스 / 채팅
+POST /api/ai/analyze
+GET  /api/news/{ticker}
+WS   /ws/stock                     # WebSocket 실시간 시세
+
+# 관리자
+GET  /api/admin/stats
+GET  /api/admin/users
+GET  /api/admin/watchlist/top
+GET  /api/admin/stocks
+GET  /api/admin/alerts
+GET  /api/admin/chats
+POST /api/admin/users/{userId}/unlock
+POST /api/admin/users/{userId}/resend-verify
+POST /api/admin/users/{userId}/role
 ```
 
 ---
@@ -197,24 +373,48 @@ feat: 소셜 계정 연동 기능 추가
 fix: 카카오 콜백 URL 오류 수정
 refactor: UserService 메소드 정렬
 style: ProfilePage CSS 수정
+design: 네이버페이 스타일 UI 리디자인
+chore: gitignore 추가
 ```
 
 ---
 
-## 현재 구현 완료
+## 구현 완료
 
-- [x] 회원가입 (본인인증 → 정보입력 → 이메일인증)
-- [x] 로그인/로그아웃 (JWT)
+**인증/회원**
+- [x] 회원가입 (PortOne 본인인증 → 주민번호 교차검증 → 정보입력 → 이메일인증)
+- [x] 보안 키패드 (주민번호 뒷자리 가상 키패드, 랜덤 배치, 마스킹)
+- [x] 로그인/로그아웃 (JWT Access/Refresh Token)
+- [x] 이메일 미인증 로그인 차단 + 재발송 버튼 (60초 쿨타임)
+- [x] 비밀번호 찾기/재설정 (이메일 링크 방식, 1시간 유효)
 - [x] 카카오/구글 소셜 로그인
 - [x] 소셜 계정 연동/해제 (USER_SOCIAL)
-- [x] 주식 시세 조회/즐겨찾기
+- [x] 프로필 이미지 업로드 (AWS S3)
+
+**주식 기능**
+- [x] 주식 시세 조회 / 즐겨찾기
 - [x] 포트폴리오 관리
-- [x] 목표가 알림
+- [x] 목표가 알림 (PRICE_ALERT)
 - [x] WebSocket 실시간 시세
-- [x] AI 분석 (Anthropic API)
-- [x] 이메일 인증 (Resend)
+- [x] AI 종목 분석 (Anthropic API)
+- [x] 뉴스 조회
+
+**UI**
+- [x] 네이버페이 스타일 UI 리디자인 (CSS 변수 기반)
+- [x] 스켈레톤 UI (종목 리스트, 상세 모달)
+- [x] 토스트 알림
+- [x] ErrorBoundary
+- [x] 번들 최적화 (코드 스플리팅)
+
+**관리자**
+- [x] 로그인 시 ADMIN → /admin 자동 이동
+- [x] 통계 탭 (전체회원/오늘가입/이메일인증/계정잠금 카드, 즐겨찾기 TOP5)
+- [x] 회원 관리 탭 (잠금해제, 메일재발송, 권한변경)
+- [x] 주식 관리 탭 (STOCK_ITEM 종목 목록)
+- [x] 알림 관리 탭 (PRICE_ALERT 전체 목록)
+- [x] AI 채팅 이력 탭 (CHAT_MESSAGE 최신 500건)
 
 ## 진행 중 / 예정
 
-- [ ] 소셜 계정 연동 로컬 테스트 완료 후 운영 배포
-- [ ] 이메일 미인증 상태 로그인 차단 (백엔드 로그인 검증 추가 필요)
+- [ ] develop → main 머지 후 운영 배포 (관리자 탭 3개 추가분)
+- [ ] 소셜 연동 운영 배포 검증

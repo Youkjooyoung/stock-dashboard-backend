@@ -33,12 +33,33 @@
     </select>
 
     <select id="selectTopWatchlist" resultType="java.util.HashMap">
-        SELECT I.TICKER, I.NAME, COUNT(W.ITEM_ID) AS cnt
+        SELECT I.TICKER, I.ITEM_NM AS name, COUNT(W.ITEM_ID) AS cnt
         FROM USER_WATCHLIST W
         JOIN STOCK_ITEM I ON W.ITEM_ID = I.ITEM_ID
-        GROUP BY W.ITEM_ID, I.TICKER, I.NAME
+        GROUP BY W.ITEM_ID, I.TICKER, I.ITEM_NM
         ORDER BY cnt DESC
         LIMIT 5
+    </select>
+
+    <select id="selectAllAlerts" resultType="java.util.HashMap">
+        SELECT A.ALERT_ID, U.EMAIL, A.TICKER, A.STOCK_NAME, A.TARGET_PRICE,
+               A.ALERT_TYPE, A.IS_TRIGGERED, A.CREATED_AT
+        FROM PRICE_ALERT A
+        JOIN USERS U ON A.USER_ID = U.USER_ID
+        ORDER BY A.CREATED_AT DESC
+    </select>
+
+    <select id="selectAllChats" resultType="java.util.HashMap">
+        SELECT MSG_ID, USER_EMAIL, TICKER, LEFT(CONTENT, 50) AS content, CREATED_AT
+        FROM CHAT_MESSAGE
+        ORDER BY CREATED_AT DESC
+        LIMIT 500
+    </select>
+
+    <select id="selectAllStocks" resultType="java.util.HashMap">
+        SELECT TICKER, ITEM_NM AS name, MARKET, CREATED_AT
+        FROM STOCK_ITEM
+        ORDER BY CREATED_AT DESC
     </select>
 
 </mapper>

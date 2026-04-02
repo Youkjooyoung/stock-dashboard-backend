@@ -27,9 +27,14 @@ public class AdminController {
         return bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : bearer;
     }
 
-    @GetMapping("/users")
-    public ResponseEntity<List<AdminUserDto>> getUsers(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getAllUsers(extractToken(bearer)));
+    @GetMapping("/alerts")
+    public ResponseEntity<List<Map<String, Object>>> getAlerts(@RequestHeader("Authorization") String bearer) {
+        return ResponseEntity.ok(adminService.getAllAlerts(extractToken(bearer)));
+    }
+
+    @GetMapping("/chats")
+    public ResponseEntity<List<Map<String, Object>>> getChats(@RequestHeader("Authorization") String bearer) {
+        return ResponseEntity.ok(adminService.getAllChats(extractToken(bearer)));
     }
 
     @GetMapping("/stats")
@@ -37,9 +42,19 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getStats(extractToken(bearer)));
     }
 
+    @GetMapping("/stocks")
+    public ResponseEntity<List<Map<String, Object>>> getStocks(@RequestHeader("Authorization") String bearer) {
+        return ResponseEntity.ok(adminService.getAllStocks(extractToken(bearer)));
+    }
+
     @GetMapping("/watchlist/top")
     public ResponseEntity<List<Map<String, Object>>> getTopWatchlist(@RequestHeader("Authorization") String bearer) {
         return ResponseEntity.ok(adminService.getTopWatchlist(extractToken(bearer)));
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<List<AdminUserDto>> getUsers(@RequestHeader("Authorization") String bearer) {
+        return ResponseEntity.ok(adminService.getAllUsers(extractToken(bearer)));
     }
 
     @PostMapping("/users/{userId}/unlock")
