@@ -131,6 +131,7 @@ public class AuthController {
         UserDto user = userService.findByEmail(dto.getEmail());
         Map<String, Object> res = new HashMap<>(tokens);
         res.put("userId", user.getUserId());
+        res.put("role", user.getRole() != null ? user.getRole() : "USER");
         return ResponseEntity.ok(res);
     }
 

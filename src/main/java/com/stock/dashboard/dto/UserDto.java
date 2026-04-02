@@ -18,6 +18,7 @@ public class UserDto {
 	private String impUid;
 	private String passwordResetToken;
 	private Date passwordResetExpiry;
+	private String role;
 	private String emailVerified;
 	private String emailVerifyToken;
 	private int loginFailCnt;

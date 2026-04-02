@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.stock.dashboard.dao.AdminDao">
+
+    <select id="selectAllUsers" resultType="com.stock.dashboard.dto.AdminUserDto">
+        SELECT USER_ID, EMAIL, NAME, NICKNAME, PHONE,
+               EMAIL_VERIFIED, ACCOUNT_LOCKED, LOGIN_FAIL_CNT, ROLE, CREATED_AT
+        FROM USERS
+        ORDER BY CREATED_AT DESC
+    </select>
+
+    <update id="unlockAccount" parameterType="int">
+        UPDATE USERS
+        SET ACCOUNT_LOCKED = 'N', LOGIN_FAIL_CNT = 0
+        WHERE USER_ID = #{userId}
+    </update>
+
+    <update id="updateUserRole" parameterType="int">
+        UPDATE USERS
+        SET ROLE = CASE WHEN ROLE = 'ADMIN' THEN 'USER' ELSE 'ADMIN' END
+        WHERE USER_ID = #{userId}
+    </update>
+
+    <select id="selectStats" resultType="java.util.HashMap">
+        SELECT
+            COUNT(*) AS totalUsers,
+            SUM(CASE WHEN DATE(CREATED_AT) = CURDATE() THEN 1 ELSE 0 END) AS todaySignups,
+            SUM(CASE WHEN EMAIL_VERIFIED = 'Y' THEN 1 ELSE 0 END) AS verifiedUsers,
+            SUM(CASE WHEN ACCOUNT_LOCKED = 'Y' THEN 1 ELSE 0 END) AS lockedUsers
+        FROM USERS
+    </select>
+
+    <select id="selectTopWatchlist" resultType="java.util.HashMap">
+        SELECT I.TICKER, I.NAME, COUNT(W.ITEM_ID) AS cnt
+        FROM USER_WATCHLIST W
+        JOIN STOCK_ITEM I ON W.ITEM_ID = I.ITEM_ID
+        GROUP BY W.ITEM_ID, I.TICKER, I.NAME
+        ORDER BY cnt DESC
+        LIMIT 5
+    </select>
+
+</mapper>
