@@ -10,7 +10,8 @@
       "Bash(curl -v \"http://localhost:8080/api/auth/hash?pw=admin\")",
       "Read(//c/Users/USER/.m2/**)",
       "Bash(cmd //c \"taskkill /F /PID 2720\")",
-      "Bash(curl -s http://localhost:8080/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin\",\"password\":\"admin\"}')"
+      "Bash(curl -s http://localhost:8080/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin\",\"password\":\"admin\"}')",
+      "Read(//c/Users/USER/.claude/projects/c--Users-USER-stock-dashboard-backend/**)"
     ]
   }
 }
