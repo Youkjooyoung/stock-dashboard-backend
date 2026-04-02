@@ -68,6 +68,44 @@ public class EmailService {
         log.info("[이메일] 인증 메일 발송: {} ({})", toEmail, response.statusCode());
     }
 
+    public void sendPasswordResetEmail(String toEmail, String token) throws Exception {
+        String resetUrl = baseUrl + "/reset-password?token=" + token;
+
+        String html = """
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+              <h2 style="color:#03C75A">주식 대시보드 비밀번호 재설정</h2>
+              <p>아래 버튼을 클릭하여 비밀번호를 재설정해 주세요.</p>
+              <a href="%s"
+                 style="display:inline-block;padding:12px 24px;background:#03C75A;
+                        color:#fff;border-radius:8px;text-decoration:none;font-weight:bold">
+                비밀번호 재설정하기
+              </a>
+              <p style="color:#999;font-size:12px;margin-top:16px">
+                본 링크는 1시간 동안 유효합니다. 본인이 요청하지 않은 경우 무시하세요.
+              </p>
+            </div>
+            """.formatted(resetUrl);
+
+        String body = mapper.writeValueAsString(Map.of(
+            "from",    fromEmail,
+            "to",      new String[]{ toEmail },
+            "subject", "[주식 대시보드] 비밀번호 재설정 안내",
+            "html",    html
+        ));
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(RESEND_URL))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        log.info("[이메일] 비밀번호 재설정 메일 발송: {} ({})", toEmail, response.statusCode());
+    }
+
     public void sendBulkCollectCompleteEmail(String toEmail, int total, String startDate, String endDate) throws Exception {
         String html = """
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto">

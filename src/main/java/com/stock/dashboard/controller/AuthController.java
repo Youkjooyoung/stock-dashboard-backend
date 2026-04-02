@@ -38,6 +38,18 @@ public class AuthController {
         return ResponseEntity.ok(userService.verifyCertification(body.get("impUid")));
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@RequestBody Map<String, String> body) throws Exception {
+        userService.forgotPassword(body.get("email"));
+        return ResponseEntity.ok(Map.of("message", "비밀번호 재설정 메일을 발송했습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@RequestBody Map<String, String> body) {
+        userService.resetPassword(body.get("token"), body.get("password"));
+        return ResponseEntity.ok(Map.of("message", "비밀번호가 변경되었습니다."));
+    }
+
     @PostMapping("/check-email")
     public ResponseEntity<Map<String, Boolean>> checkEmail(@RequestBody Map<String, String> body) {
         return ResponseEntity.ok(Map.of("exists", userService.checkEmailExists(body.get("email"))));

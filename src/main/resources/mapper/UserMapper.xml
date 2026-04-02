@@ -30,6 +30,12 @@
         WHERE EMAIL = #{email}
     </select>
 
+    <select id="findByPasswordResetToken" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
+        SELECT USER_ID, EMAIL, PASSWORD_RESET_TOKEN, PASSWORD_RESET_EXPIRY
+        FROM USERS
+        WHERE PASSWORD_RESET_TOKEN = #{token}
+    </select>
+
     <select id="findByEmailVerifyToken" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, EMAIL_VERIFIED
         FROM USERS
@@ -73,6 +79,20 @@
     <select id="selectWatchlist" resultType="int">
         SELECT ITEM_ID FROM USER_WATCHLIST WHERE USER_ID = #{param1}
     </select>
+
+    <update id="updatePasswordResetToken" parameterType="com.stock.dashboard.dto.UserDto">
+        UPDATE USERS
+        SET PASSWORD_RESET_TOKEN = #{passwordResetToken},
+            PASSWORD_RESET_EXPIRY = #{passwordResetExpiry}
+        WHERE USER_ID = #{userId}
+    </update>
+
+    <update id="clearPasswordResetToken" parameterType="int">
+        UPDATE USERS
+        SET PASSWORD_RESET_TOKEN = NULL,
+            PASSWORD_RESET_EXPIRY = NULL
+        WHERE USER_ID = #{userId}
+    </update>
 
     <update id="updateEmailVerified" parameterType="String">
         UPDATE USERS

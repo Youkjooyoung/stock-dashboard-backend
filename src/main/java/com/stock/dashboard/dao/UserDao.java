@@ -20,6 +20,12 @@ public interface UserDao {
 
 	UserDto findByEmailVerifyToken(String token);
 
+	UserDto findByPasswordResetToken(String token);
+
+	void updatePasswordResetToken(UserDto dto);
+
+	void clearPasswordResetToken(int userId);
+
 	int insertUser(UserDto dto);
 
 	void insertWatchlist(int userId, int itemId);

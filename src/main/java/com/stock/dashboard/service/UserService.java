@@ -6,6 +6,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,12 @@ public class UserService {
 
         if (checkEmailExists(dto.getEmail()))
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+
+        if (dto.getImpUid() == null || dto.getImpUid().isBlank())
+            throw new IllegalArgumentException("본인인증이 필요합니다.");
+
+        Map<String, String> certData = portoneService.getCertification(dto.getImpUid());
+        validateResidentNoByCert(dto.getResidentNo(), certData.get("birth"));
 
         dto.setPassword(passwordEncoder.encode(dto.getPassword()));
         dto.setResidentNo(aesEncryptor.encrypt(dto.getResidentNo()));
@@ -237,6 +245,33 @@ public class UserService {
 
     public void addWatchlist(String token, int itemId) {
         userDao.insertWatchlist(getUserFromToken(token).getUserId(), itemId);
+    }
+
+    public void forgotPassword(String email) throws Exception {
+        UserDto user = userDao.findByEmail(email);
+        if (user == null) throw new RuntimeException("존재하지 않는 이메일입니다.");
+
+        String token = UUID.randomUUID().toString();
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.HOUR, 1);
+
+        user.setPasswordResetToken(token);
+        user.setPasswordResetExpiry(cal.getTime());
+        userDao.updatePasswordResetToken(user);
+        emailService.sendPasswordResetEmail(email, token);
+    }
+
+    public void resetPassword(String token, String newPassword) {
+        validator.validatePassword(newPassword);
+
+        UserDto user = userDao.findByPasswordResetToken(token);
+        if (user == null) throw new RuntimeException("유효하지 않은 링크입니다.");
+        if (new Date().after(user.getPasswordResetExpiry()))
+            throw new RuntimeException("만료된 링크입니다. 다시 요청해 주세요.");
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userDao.updatePassword(user);
+        userDao.clearPasswordResetToken(user.getUserId());
     }
 
     public Map<String, String> verifyCertification(String impUid) throws Exception {
@@ -411,6 +446,28 @@ public class UserService {
         String newImageUrl = s3Service.upload(file, "profiles");
         userDao.updateProfileImageUrl(userId, newImageUrl);
         return newImageUrl;
+    }
+
+    private void validateResidentNoByCert(String residentNo, String birth) {
+        if (birth == null || birth.isBlank())
+            throw new IllegalArgumentException("본인인증 생년월일 정보를 확인할 수 없습니다.");
+
+        String birthYYMMDD = birth.replace("-", "").substring(2);
+        String rrnFront    = residentNo.substring(0, 6);
+
+        if (!birthYYMMDD.equals(rrnFront))
+            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
+
+        int genderCode = Integer.parseInt(residentNo.substring(6, 7));
+        int birthYear  = Integer.parseInt(birth.substring(0, 4));
+
+        boolean is1900s = birthYear >= 1900 && birthYear <= 1999;
+        boolean is2000s = birthYear >= 2000 && birthYear <= 2099;
+
+        if (is1900s && genderCode != 1 && genderCode != 2)
+            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
+        if (is2000s && genderCode != 3 && genderCode != 4)
+            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
     }
 
     private void validateImageFile(org.springframework.web.multipart.MultipartFile file) {
