@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(cmd //c \"taskkill /F /PID 19360\")"
+      "Bash(cmd //c \"taskkill /F /PID 19360\")",
+      "Bash(cmd //c \"taskkill /F /PID 18384\")",
+      "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'admin', bcrypt.gensalt\\(rounds=10\\)\\).decode\\(\\)\\)\")",
+      "Bash(node -e \"const bcrypt=require\\('bcrypt'\\); bcrypt.hash\\('admin',10\\).then\\(h=>console.log\\(h\\)\\)\")",
+      "Bash(cmd //c \"taskkill /F /PID $\\(netstat -ano)",
+      "Bash(curl -s \"http://localhost:8080/api/auth/hash?pw=admin\")",
+      "Bash(curl -v \"http://localhost:8080/api/auth/hash?pw=admin\")",
+      "Read(//c/Users/USER/.m2/**)",
+      "Bash(cmd //c \"taskkill /F /PID 2720\")",
+      "Bash(curl -s http://localhost:8080/api/auth/login -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"admin\",\"password\":\"admin\"}')"
     ]
   }
 }
