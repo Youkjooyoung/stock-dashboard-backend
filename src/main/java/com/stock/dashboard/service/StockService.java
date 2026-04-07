@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
@@ -38,19 +40,19 @@ public class StockService {
 
 	private static final DateTimeFormatter FMT        = DateTimeFormatter.ofPattern("yyyyMMdd");
 	private static final List<String>     MARKETS     = List.of("KOSPI", "KOSDAQ");
-	private static final HttpClient       HTTP_CLIENT = HttpClient.newHttpClient();
+	private static final HttpClient       HTTP_CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 	private static final int              MAX_RETRY   = 3;
 	private static final long             RETRY_DELAY = 2000L; // ms
 
 	// 전체 수집 진행 상태 (0 = 대기, -1 = 완료, 1~N = 진행 중 종목 번호)
 	private final AtomicInteger bulkProgress  = new AtomicInteger(0);
 	private volatile int        bulkTotal     = 0;
-	private volatile String     bulkStatus    = "idle"; // idle | running | done | error
+	private final AtomicReference<String> bulkStatus = new AtomicReference<>("idle"); // idle | running | done | error
 
 	public record BulkStatusDto(String status, int current, int total) {}
 
 	public BulkStatusDto getBulkStatus() {
-		return new BulkStatusDto(bulkStatus, bulkProgress.get(), bulkTotal);
+		return new BulkStatusDto(bulkStatus.get(), bulkProgress.get(), bulkTotal);
 	}
 
 	private final StockDao stockDao;
@@ -141,7 +143,7 @@ public class StockService {
 
 	@Async
 	public void collectAllHistory(String startDate, String endDate, int fromIndex, boolean skipExisting) {
-		if ("running".equals(bulkStatus)) {
+		if (!bulkStatus.compareAndSet("idle", "running") && !bulkStatus.compareAndSet("done", "running") && !bulkStatus.compareAndSet("error", "running")) {
 			log.warn("[일괄수집] 이미 실행 중");
 			return;
 		}
@@ -158,7 +160,6 @@ public class StockService {
 
 		bulkTotal = items.size();
 		bulkProgress.set(fromIndex);
-		bulkStatus = "running";
 		log.info("[일괄수집] 시작 — 총 {}종목, {}~{}, {}번부터, skipExisting={}", bulkTotal, startDate, endDate, fromIndex, skipExisting);
 
 		for (int i = fromIndex; i < items.size(); i++) {
@@ -175,7 +176,7 @@ public class StockService {
 				bulkProgress.incrementAndGet();
 			}
 		}
-		bulkStatus = "done";
+		bulkStatus.set("done");
 		log.info("[일괄수집] 완료 — {}종목", bulkTotal);
 		try {
 			emailService.sendBulkCollectCompleteEmail(notifyEmail, bulkTotal, startDate, endDate);
