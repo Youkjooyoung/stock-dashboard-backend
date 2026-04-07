@@ -137,6 +137,7 @@ public class UserService {
 	            Map<String, String> tokens = issueTokens(linkedUser);
 	            tokens.put("email", linkedUser.getEmail());
 	            tokens.put("nickname", nickname);
+	            tokens.put("role", linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
 	            return tokens;
 	        }
 	    }
@@ -172,6 +173,7 @@ public class UserService {
 	            Map<String, String> tokens = issueTokens(linkedUser);
 	            tokens.put("email", linkedUser.getEmail());
 	            tokens.put("nickname", nickname);
+	            tokens.put("role", linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
 	            return tokens;
 	        }
 	    }
@@ -433,6 +435,7 @@ public class UserService {
         Map<String, String> tokens = issueTokens(user);
         tokens.put("email",    email);
         tokens.put("nickname", nickname);
+        tokens.put("role",     user.getRole() != null ? user.getRole() : "USER");
         return tokens;
     }
     public long getUserIdFromToken(String token) {
