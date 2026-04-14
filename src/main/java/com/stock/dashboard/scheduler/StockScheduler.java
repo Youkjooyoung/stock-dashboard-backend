@@ -2,7 +2,6 @@ package com.stock.dashboard.scheduler;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -25,8 +24,8 @@ import lombok.extern.slf4j.Slf4j;
 public class StockScheduler {
 
 	private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
-	private static final LocalTime COLLECT_TIME = LocalTime.of(18, 0);
 	private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+	private static final int BACKFILL_DAYS = 5;
 
 	private final PriceAlertService alertService;
 	private final StockService stockService;
@@ -42,47 +41,34 @@ public class StockScheduler {
 		alertService.checkAlerts();
 	}
 
-	// 전일 데이터 보완 (공공데이터포털 익일 오전 반영 대응)
-	@Scheduled(cron = "0 0 8 * * MON-FRI", zone = "Asia/Seoul")
-	public void collectYesterday() {
-		LocalDate prev = LocalDate.now(SEOUL).minusDays(1);
-		if (prev.getDayOfWeek() == DayOfWeek.SUNDAY)
-			prev = prev.minusDays(2);
-		else if (prev.getDayOfWeek() == DayOfWeek.SATURDAY)
-			prev = prev.minusDays(1);
-		log.info("[스케줄러] 전일 데이터 보완: {}", prev.format(FMT));
-		collect(prev.format(FMT));
+	// 매일 11:00 KST — 최근 5영업일 역순 백필
+	// 공공데이터 API 가 전일 종가를 오전 늦게 게시하므로 08/18시 단발 호출은 매번 공수표였음.
+	// 11시 시점에는 T-1 확정 게시가 끝나 있고, 하루 놓쳐도 다음날 자동 복구됨.
+	@Scheduled(cron = "0 0 11 * * MON-SAT", zone = "Asia/Seoul")
+	public void collectRecent() {
+		log.info("[스케줄러] 최근 {}영업일 백필 시작 (cron)", BACKFILL_DAYS);
+		backfillRecentBusinessDays(LocalDate.now(SEOUL));
+		log.info("[스케줄러] 최근 {}영업일 백필 완료 (cron)", BACKFILL_DAYS);
 	}
 
-	// 당일 데이터 수집 (18시 — API 반영 여유)
-	@Scheduled(cron = "0 0 18 * * MON-FRI", zone = "Asia/Seoul")
-	public void collectToday() {
-		String today = LocalDate.now(SEOUL).format(FMT);
-		log.info("[스케줄러] 오늘 데이터 수집: {}", today);
-		collect(today);
-	}
-
-	// 서버 시작 시 최근 5 영업일 보완
+	// 서버 시작 시 최근 5영업일 보완 — 기동 직후 즉시 동기화
 	@Scheduled(initialDelay = 5000, fixedDelay = Long.MAX_VALUE)
 	public void collectMissingOnStartup() {
-		log.info("[스케줄러] 누락 데이터 보완 시작");
-		LocalDate cursor = LocalDate.now(SEOUL);
-		LocalTime nowTime = LocalTime.now(SEOUL);
+		log.info("[스케줄러] 기동 백필 시작");
+		backfillRecentBusinessDays(LocalDate.now(SEOUL));
+		log.info("[스케줄러] 기동 백필 완료");
+	}
 
-		if (nowTime.isBefore(COLLECT_TIME)) {
-			log.info("[스케줄러] 현재 {}시 — 오늘 데이터는 18:00 스케줄러에서 수집", nowTime.getHour());
-			cursor = cursor.minusDays(1);
-		}
-
+	private void backfillRecentBusinessDays(LocalDate from) {
+		LocalDate cursor = from;
 		int collected = 0;
-		while (collected < 5) {
+		while (collected < BACKFILL_DAYS) {
 			if (cursor.getDayOfWeek() != DayOfWeek.SATURDAY && cursor.getDayOfWeek() != DayOfWeek.SUNDAY) {
 				collect(cursor.format(FMT));
 				collected++;
 			}
 			cursor = cursor.minusDays(1);
 		}
-		log.info("[스케줄러] 누락 데이터 보완 완료");
 	}
 
 	@SuppressWarnings("null") // Map.of() is always non-null; Eclipse null analysis false positive
