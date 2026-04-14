@@ -173,13 +173,14 @@ public class AuthController {
     private String buildOAuthRedirect(Map<String, String> tokens, String provider) throws Exception {
         // 토큰을 URL 쿼리가 아닌 fragment(#)로 전달 → 서버 로그/리퍼러에 노출되지 않음
         return String.format(
-            "%s/oauth#accessToken=%s&refreshToken=%s&email=%s&nickname=%s&provider=%s",
+            "%s/oauth#accessToken=%s&refreshToken=%s&email=%s&nickname=%s&provider=%s&role=%s",
             appBaseUrl,
             tokens.get("accessToken"),
             tokens.get("refreshToken"),
             tokens.get("email"),
             URLEncoder.encode(tokens.getOrDefault("nickname", ""), StandardCharsets.UTF_8),
-            provider
+            provider,
+            tokens.getOrDefault("role", "USER")
         );
     }
 }
