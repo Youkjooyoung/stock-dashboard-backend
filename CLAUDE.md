@@ -8,7 +8,7 @@
 ## Tech Stack
 
 **Backend**
-- Java 17, Spring Boot 3.3
+- Java 21 (LTS), Spring Boot 3.3
 - MyBatis (ORM)
 - MySQL 8.0
 - Spring Security + JWT (Access/Refresh Token)
@@ -30,6 +30,7 @@
 
 **Infra**
 - AWS EC2 (프론트/백 분리 서버)
+- Docker (백엔드 컨테이너 실행)
 - Nginx (리버스 프록시)
 - Let's Encrypt SSL
 - Route53 DNS
@@ -108,6 +109,11 @@ src/main/resources/
 ├── application.properties
 ├── application-local.properties   (gitignore)
 └── application-prod.properties    (gitignore)
+
+루트/
+├── Dockerfile
+├── .dockerignore
+└── pom.xml
 ```
 
 **Frontend**
@@ -194,6 +200,10 @@ src/
 # 빌드
 ./mvnw clean package -DskipTests
 
+# Docker 빌드/실행
+docker build -t stock-dashboard-backend .
+docker run -d -p 8443:8443 --name stock-dashboard-backend stock-dashboard-backend
+
 # 운영 배포 (MobaXterm)
 cd ~/stock-dashboard-backend
 git pull origin main
@@ -250,11 +260,12 @@ mysql -u root -p stock_dashboard
 ```sql
 USERS
   USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
+  ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,   -- AES-256 암호화 저장
   EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
   ACCOUNT_LOCKED, LOGIN_FAIL_CNT,
   ROLE,           -- USER / ADMIN
-  PW_RESET_TOKEN, PW_RESET_EXPIRES,
-  PROFILE_IMAGE_URL, CREATED_AT
+  PASSWORD_RESET_TOKEN, PASSWORD_RESET_EXPIRY,
+  profile_image_url, CREATED_AT
 
 USER_SOCIAL
   ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
@@ -416,5 +427,5 @@ chore: gitignore 추가
 
 ## 진행 중 / 예정
 
-- [ ] develop → main 머지 후 운영 배포 (관리자 탭 3개 추가분)
-- [ ] 소셜 연동 운영 배포 검증
+- [ ] Resend 이메일 발송 커스텀 도메인 전환 (현재 sandbox `onboarding@resend.dev`)
+- [ ] Docker Compose 도입 (백엔드 + DB)
