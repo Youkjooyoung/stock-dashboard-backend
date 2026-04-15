@@ -34,15 +34,7 @@ public class AiAnalysisService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public String analyzeStock(String prompt) throws Exception {
-        return callClaude(prompt);
-    }
-
-    public String analyzePortfolio(String prompt) throws Exception {
-        return callClaude(prompt);
-    }
-
-    private String callClaude(String userPrompt) throws Exception {
+    public String analyze(String prompt) throws Exception {
         ObjectNode body = objectMapper.createObjectNode();
         body.put("model", MODEL);
         body.put("max_tokens", 1024);
@@ -51,18 +43,16 @@ public class AiAnalysisService {
         ArrayNode messages = objectMapper.createArrayNode();
         ObjectNode message = objectMapper.createObjectNode();
         message.put("role", "user");
-        message.put("content", userPrompt);
+        message.put("content", prompt);
         messages.add(message);
         body.set("messages", messages);
-
-        String requestBody = objectMapper.writeValueAsString(body);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(ANTHROPIC_URL))
                 .header("Content-Type", "application/json")
                 .header("x-api-key", apiKey)
                 .header("anthropic-version", "2023-06-01")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))
                 .build();
 
         HttpResponse<String> response = HttpClient.newHttpClient()

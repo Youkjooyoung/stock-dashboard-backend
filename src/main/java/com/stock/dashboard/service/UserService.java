@@ -118,67 +118,53 @@ public class UserService {
         userDao.resetLoginFail(dto.getEmail());
         return issueTokens(user);
     }
-	public Map<String, String> kakaoLogin(String code) throws Exception {
-	    HttpClient client = HttpClient.newHttpClient();
-	    String tokenBody = String.format(
-	        "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
-	        kakaoClientId, kakaoClientSecret, kakaoRedirectUri, code
-	    );
-	    String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
-	    JsonNode userJson = fetchUserInfo(client, "https://kapi.kakao.com/v2/user/me", kakaoToken);
-	    String email    = userJson.path("kakao_account").path("email").asText();
-	    String nickname = userJson.path("properties").path("nickname").asText();
-	    if (email.isEmpty())    email    = "kakao_" + userJson.path("id").asText() + "@kakao.com";
-	    if (nickname.isEmpty()) nickname = "카카오 사용자";
-	    UserSocialDto linked = userSocialDao.selectByProviderAndEmail("KAKAO", email);
-	    if (linked != null) {
-	        UserDto linkedUser = userDao.findById(linked.getUserId());
-	        if (linkedUser != null) {
-	            Map<String, String> tokens = issueTokens(linkedUser);
-	            tokens.put("email", linkedUser.getEmail());
-	            tokens.put("nickname", nickname);
-	            tokens.put("role", linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
-	            return tokens;
-	        }
-	    }
-	    return processSocialLogin(email, nickname, "KAKAO_");
-	}
-	public Map<String, String> googleLogin(String code) throws Exception {
-	    HttpClient client = HttpClient.newHttpClient();
-	    String tokenBody = String.format(
-	        "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
-	        code, googleClientId, googleClientSecret, googleRedirectUri
-	    );
-	    String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
-	    JsonNode userJson = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
-	    String email = "";
-	    if (userJson.has("email")) {
-	        email = userJson.get("email").asText();
-	    }
-	    if (email == null || email.isEmpty()) {
-	        String id = userJson.has("id") ? userJson.get("id").asText() : String.valueOf(System.currentTimeMillis());
-	        email = "google_" + id + "@google.com";
-	    }
-	    String nickname = "";
-	    if (userJson.has("name")) {
-	        nickname = userJson.get("name").asText();
-	    }
-	    if (nickname == null || nickname.isEmpty()) {
-	        nickname = "구글 사용자";
-	    }
-	    UserSocialDto linked = userSocialDao.selectByProviderAndEmail("GOOGLE", email);
-	    if (linked != null) {
-	        UserDto linkedUser = userDao.findById(linked.getUserId());
-	        if (linkedUser != null) {
-	            Map<String, String> tokens = issueTokens(linkedUser);
-	            tokens.put("email", linkedUser.getEmail());
-	            tokens.put("nickname", nickname);
-	            tokens.put("role", linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
-	            return tokens;
-	        }
-	    }
-	    return processSocialLogin(email, nickname, "GOOGLE_");
-	}
+    public Map<String, String> kakaoLogin(String code) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        String tokenBody = String.format(
+            "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
+            kakaoClientId, kakaoClientSecret, kakaoRedirectUri, code
+        );
+        String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
+        JsonNode info = fetchUserInfo(client, "https://kapi.kakao.com/v2/user/me", kakaoToken);
+        String email    = info.path("kakao_account").path("email").asText();
+        String nickname = info.path("properties").path("nickname").asText();
+        if (email.isEmpty())    email    = "kakao_" + info.path("id").asText() + "@kakao.com";
+        if (nickname.isEmpty()) nickname = "카카오 사용자";
+        return handleSocialLogin("KAKAO", "KAKAO_", email, nickname);
+    }
+
+    public Map<String, String> googleLogin(String code) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        String tokenBody = String.format(
+            "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
+            code, googleClientId, googleClientSecret, googleRedirectUri
+        );
+        String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
+        JsonNode info = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
+        String email    = info.path("email").asText();
+        String nickname = info.path("name").asText();
+        if (email.isEmpty()) {
+            String id = info.path("id").asText();
+            email = "google_" + (id.isEmpty() ? System.currentTimeMillis() : id) + "@google.com";
+        }
+        if (nickname.isEmpty()) nickname = "구글 사용자";
+        return handleSocialLogin("GOOGLE", "GOOGLE_", email, nickname);
+    }
+
+    private Map<String, String> handleSocialLogin(String provider, String prefix, String email, String nickname) {
+        UserSocialDto linked = userSocialDao.selectByProviderAndEmail(provider, email);
+        if (linked != null) {
+            UserDto linkedUser = userDao.findById(linked.getUserId());
+            if (linkedUser != null) {
+                Map<String, String> tokens = issueTokens(linkedUser);
+                tokens.put("email",    linkedUser.getEmail());
+                tokens.put("nickname", nickname);
+                tokens.put("role",     linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
+                return tokens;
+            }
+        }
+        return processSocialLogin(email, nickname, prefix);
+    }
     public void linkGoogle(String token, String code) throws Exception {
         UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
         HttpClient client = HttpClient.newHttpClient();
