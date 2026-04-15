@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.dto.UserLoginRequest;
+import com.stock.dashboard.dto.UserSignupRequest;
 import com.stock.dashboard.service.UserService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -126,9 +128,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody UserDto dto) {
-        Map<String, String> tokens = userService.login(dto);
-        UserDto user = userService.findByEmail(dto.getEmail());
+    public ResponseEntity<Map<String, Object>> login(@RequestBody UserLoginRequest req) {
+        Map<String, String> tokens = userService.login(req);
+        UserDto user = userService.findByEmail(req.getEmail());
         Map<String, Object> res = new HashMap<>(tokens);
         res.put("userId", user.getUserId());
         res.put("role", user.getRole() != null ? user.getRole() : "USER");
@@ -158,7 +160,7 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<Map<String, String>> signup(@RequestBody UserDto dto) throws Exception {
+    public ResponseEntity<Map<String, String>> signup(@RequestBody UserSignupRequest dto) throws Exception {
         userService.signup(dto);
         return ResponseEntity.ok(Map.of("message", "이메일 인증 메일을 발송했습니다."));
     }

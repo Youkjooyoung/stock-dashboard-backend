@@ -28,6 +28,8 @@ import com.stock.dashboard.dao.UserSocialDao;
 import com.stock.dashboard.dto.RefreshTokenDto;
 import com.stock.dashboard.dto.StockPriceDto;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.dto.UserLoginRequest;
+import com.stock.dashboard.dto.UserSignupRequest;
 import com.stock.dashboard.dto.UserSocialDto;
 import com.stock.dashboard.util.AesEncryptor;
 
@@ -59,30 +61,35 @@ public class UserService {
     @Value("${google.client-secret}")  private String googleClientSecret;
     @Value("${google.redirect-uri}")   private String googleRedirectUri;
 
-    public void signup(UserDto dto) throws Exception {
-        validator.validateEmail(dto.getEmail());
-        validator.validatePassword(dto.getPassword());
-        validator.validateNickname(dto.getNickname());
-        validator.validateResidentNo(dto.getResidentNo());
-        validator.validatePhone(dto.getPhone());
+    public void signup(UserSignupRequest req) throws Exception {
+        validator.validateEmail(req.getEmail());
+        validator.validatePassword(req.getPassword());
+        validator.validateNickname(req.getNickname());
+        validator.validateResidentNo(req.getResidentNo());
+        validator.validatePhone(req.getPhone());
 
-        if (checkEmailExists(dto.getEmail()))
+        if (checkEmailExists(req.getEmail()))
             throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
 
-        if (dto.getImpUid() == null || dto.getImpUid().isBlank())
+        if (req.getImpUid() == null || req.getImpUid().isBlank())
             throw new IllegalArgumentException("본인인증이 필요합니다.");
 
-        Map<String, String> certData = portoneService.getCertification(dto.getImpUid());
-        validateResidentNoByCert(dto.getResidentNo(), certData.get("birth"));
+        Map<String, String> certData = portoneService.getCertification(req.getImpUid());
+        validateResidentNoByCert(req.getResidentNo(), certData.get("birth"));
 
-        dto.setPassword(passwordEncoder.encode(dto.getPassword()));
-        dto.setResidentNo(aesEncryptor.encrypt(dto.getResidentNo()));
-
-        String token = UUID.randomUUID().toString();
-        dto.setEmailVerifyToken(token);
+        UserDto dto = new UserDto();
+        dto.setEmail(req.getEmail());
+        dto.setPassword(passwordEncoder.encode(req.getPassword()));
+        dto.setName(req.getName());
+        dto.setNickname(req.getNickname());
+        dto.setPhone(req.getPhone());
+        dto.setAddress(req.getAddress());
+        dto.setAddressDetail(req.getAddressDetail());
+        dto.setResidentNo(aesEncryptor.encrypt(req.getResidentNo()));
+        dto.setEmailVerifyToken(UUID.randomUUID().toString());
 
         userDao.insertUser(dto);
-        emailService.sendVerificationEmail(dto.getEmail(), token);
+        emailService.sendVerificationEmail(dto.getEmail(), dto.getEmailVerifyToken());
     }
 
     public String register(UserDto dto) {
@@ -95,12 +102,12 @@ public class UserService {
         return "회원가입 완료";
     }
 
-    public Map<String, String> login(UserDto dto) {
-        if (!"admin".equals(dto.getEmail())) {
-            validator.validateEmail(dto.getEmail());
+    public Map<String, String> login(UserLoginRequest req) {
+        if (!"admin".equals(req.getEmail())) {
+            validator.validateEmail(req.getEmail());
         }
 
-        UserDto user = userDao.findByEmail(dto.getEmail());
+        UserDto user = userDao.findByEmail(req.getEmail());
         if (user == null)
             throw new RuntimeException("이메일 또는 비밀번호가 틀렸습니다.");
         if ("Y".equals(user.getAccountLocked()))
@@ -108,14 +115,14 @@ public class UserService {
         if (!"Y".equals(user.getEmailVerified()))
             throw new RuntimeException("이메일 인증이 필요합니다.");
 
-        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            userDao.updateLoginFail(dto.getEmail());
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
+            userDao.updateLoginFail(req.getEmail());
             int remaining = 5 - (user.getLoginFailCnt() + 1);
             if (remaining <= 0) throw new RuntimeException("로그인 시도 횟수 초과로 계정이 잠겼습니다.");
             throw new RuntimeException("비밀번호가 틀렸습니다. 남은 시도: " + remaining + "회");
         }
 
-        userDao.resetLoginFail(dto.getEmail());
+        userDao.resetLoginFail(req.getEmail());
         return issueTokens(user);
     }
     public Map<String, String> kakaoLogin(String code) throws Exception {
