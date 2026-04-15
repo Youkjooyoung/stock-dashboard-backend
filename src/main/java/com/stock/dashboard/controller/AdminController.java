@@ -7,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -23,61 +22,51 @@ public class AdminController {
 
     private final AdminService adminService;
 
-    private String extractToken(String bearer) {
-        return bearer != null && bearer.startsWith("Bearer ") ? bearer.substring(7) : bearer;
-    }
-
     @GetMapping("/alerts")
-    public ResponseEntity<List<Map<String, Object>>> getAlerts(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getAllAlerts(extractToken(bearer)));
+    public ResponseEntity<List<Map<String, Object>>> getAlerts() {
+        return ResponseEntity.ok(adminService.getAllAlerts());
     }
 
     @GetMapping("/chats")
-    public ResponseEntity<List<Map<String, Object>>> getChats(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getAllChats(extractToken(bearer)));
+    public ResponseEntity<List<Map<String, Object>>> getChats() {
+        return ResponseEntity.ok(adminService.getAllChats());
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getStats(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getStats(extractToken(bearer)));
+    public ResponseEntity<Map<String, Object>> getStats() {
+        return ResponseEntity.ok(adminService.getStats());
     }
 
     @GetMapping("/stocks")
-    public ResponseEntity<List<Map<String, Object>>> getStocks(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getAllStocks(extractToken(bearer)));
-    }
-
-    @GetMapping("/watchlist/top")
-    public ResponseEntity<List<Map<String, Object>>> getTopWatchlist(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getTopWatchlist(extractToken(bearer)));
+    public ResponseEntity<List<Map<String, Object>>> getStocks() {
+        return ResponseEntity.ok(adminService.getAllStocks());
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<AdminUserDto>> getUsers(@RequestHeader("Authorization") String bearer) {
-        return ResponseEntity.ok(adminService.getAllUsers(extractToken(bearer)));
+    public ResponseEntity<List<AdminUserDto>> getUsers() {
+        return ResponseEntity.ok(adminService.getAllUsers());
     }
 
-    @PostMapping("/users/{userId}/unlock")
-    public ResponseEntity<Map<String, String>> unlockAccount(
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable int userId) {
-        adminService.unlockAccount(extractToken(bearer), userId);
-        return ResponseEntity.ok(Map.of("message", "계정 잠금을 해제했습니다."));
+    @GetMapping("/watchlist/top")
+    public ResponseEntity<List<Map<String, Object>>> getTopWatchlist() {
+        return ResponseEntity.ok(adminService.getTopWatchlist());
     }
 
     @PostMapping("/users/{userId}/resend-verify")
-    public ResponseEntity<Map<String, String>> resendVerify(
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable int userId) throws Exception {
-        adminService.resendVerifyEmail(extractToken(bearer), userId);
+    public ResponseEntity<Map<String, String>> resendVerify(@PathVariable int userId) throws Exception {
+        adminService.resendVerifyEmail(userId);
         return ResponseEntity.ok(Map.of("message", "인증 메일을 재발송했습니다."));
     }
 
     @PostMapping("/users/{userId}/role")
-    public ResponseEntity<Map<String, String>> updateRole(
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable int userId) {
-        adminService.updateUserRole(extractToken(bearer), userId);
+    public ResponseEntity<Map<String, String>> updateRole(@PathVariable int userId) {
+        adminService.updateUserRole(userId);
         return ResponseEntity.ok(Map.of("message", "권한을 변경했습니다."));
+    }
+
+    @PostMapping("/users/{userId}/unlock")
+    public ResponseEntity<Map<String, String>> unlockAccount(@PathVariable int userId) {
+        adminService.unlockAccount(userId);
+        return ResponseEntity.ok(Map.of("message", "계정 잠금을 해제했습니다."));
     }
 }

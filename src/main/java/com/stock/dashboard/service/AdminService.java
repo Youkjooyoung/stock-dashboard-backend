@@ -5,7 +5,6 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.dao.AdminDao;
 import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dto.AdminUserDto;
@@ -17,63 +16,46 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AdminService {
 
-    private final AdminDao    adminDao;
+    private final AdminDao     adminDao;
     private final EmailService emailService;
-    private final JwtUtil     jwtUtil;
-    private final UserDao     userDao;
+    private final UserDao      userDao;
 
-    public List<Map<String, Object>> getAllAlerts(String token) {
-        checkAdmin(token);
+    public List<Map<String, Object>> getAllAlerts() {
         return adminDao.selectAllAlerts();
     }
 
-    public List<Map<String, Object>> getAllChats(String token) {
-        checkAdmin(token);
+    public List<Map<String, Object>> getAllChats() {
         return adminDao.selectAllChats();
     }
 
-    public List<Map<String, Object>> getAllStocks(String token) {
-        checkAdmin(token);
+    public List<Map<String, Object>> getAllStocks() {
         return adminDao.selectAllStocks();
     }
 
-    public List<AdminUserDto> getAllUsers(String token) {
-        checkAdmin(token);
+    public List<AdminUserDto> getAllUsers() {
         return adminDao.selectAllUsers();
     }
 
-    public Map<String, Object> getStats(String token) {
-        checkAdmin(token);
+    public Map<String, Object> getStats() {
         return adminDao.selectStats();
     }
 
-    public List<Map<String, Object>> getTopWatchlist(String token) {
-        checkAdmin(token);
+    public List<Map<String, Object>> getTopWatchlist() {
         return adminDao.selectTopWatchlist();
     }
 
-    public void unlockAccount(String token, int userId) {
-        checkAdmin(token);
-        adminDao.unlockAccount(userId);
-    }
-
-    public void resendVerifyEmail(String token, int userId) throws Exception {
-        checkAdmin(token);
+    public void resendVerifyEmail(int userId) throws Exception {
         UserDto user = userDao.findById(userId);
         if (user == null) throw new RuntimeException("존재하지 않는 회원입니다.");
         if ("Y".equals(user.getEmailVerified())) throw new RuntimeException("이미 인증된 회원입니다.");
         emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerifyToken());
     }
 
-    public void updateUserRole(String token, int userId) {
-        checkAdmin(token);
-        adminDao.updateUserRole(userId);
+    public void unlockAccount(int userId) {
+        adminDao.unlockAccount(userId);
     }
 
-    private void checkAdmin(String token) {
-        String email = jwtUtil.getEmailFromAccess(token);
-        UserDto user = userDao.findByEmail(email);
-        if (user == null || !"ADMIN".equals(user.getRole()))
-            throw new SecurityException("관리자 권한이 필요합니다.");
+    public void updateUserRole(int userId) {
+        adminDao.updateUserRole(userId);
     }
 }

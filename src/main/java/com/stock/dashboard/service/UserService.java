@@ -237,8 +237,10 @@ public class UserService {
         RefreshTokenDto rtDto = refreshTokenDao.findByToken(refreshToken);
         if (rtDto == null)
             throw new RuntimeException("만료되거나 존재하지 않는 Refresh Token입니다.");
+        String email = jwtUtil.getEmailFromRefresh(refreshToken);
+        UserDto user = userDao.findByEmail(email);
         return Map.of("accessToken",
-            jwtUtil.generateAccessToken(jwtUtil.getEmailFromRefresh(refreshToken)));
+            jwtUtil.generateAccessToken(email, user != null ? user.getRole() : "USER"));
     }
 
     public void logout(String refreshToken) {
@@ -405,7 +407,7 @@ public class UserService {
     }
 
     private Map<String, String> issueTokens(UserDto user) {
-        String accessToken  = jwtUtil.generateAccessToken(user.getEmail());
+        String accessToken  = jwtUtil.generateAccessToken(user.getEmail(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
         refreshTokenDao.deleteByUserId(user.getUserId());

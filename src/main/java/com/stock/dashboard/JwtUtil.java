@@ -26,8 +26,14 @@ public class JwtUtil {
 		this.refreshKey = Keys.hmacShaKeyFor(refreshSecret.getBytes());
 	}
 
-	public String generateAccessToken(String email) {
-		return buildToken(email, ACCESS_EXPIRATION, accessKey);
+	public String generateAccessToken(String email, String role) {
+		return Jwts.builder()
+				.subject(email)
+				.claim("role", role)
+				.issuedAt(new Date())
+				.expiration(new Date(System.currentTimeMillis() + ACCESS_EXPIRATION))
+				.signWith(accessKey)
+				.compact();
 	}
 
 	public String generateRefreshToken(String email) {
@@ -40,6 +46,15 @@ public class JwtUtil {
 
 	public String getEmailFromRefresh(String token) {
 		return getSubject(token, refreshKey);
+	}
+
+	public String getRoleFromAccess(String token) {
+		try {
+			return Jwts.parser().verifyWith(accessKey).build()
+					.parseSignedClaims(token).getPayload().get("role", String.class);
+		} catch (Exception e) {
+			return null;
+		}
 	}
 
 	public Date getRefreshExpiredAt() {

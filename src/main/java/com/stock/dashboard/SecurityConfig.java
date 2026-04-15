@@ -70,10 +70,14 @@ public class SecurityConfig {
                     "/api/auth/google/link",
                     "/api/user/kakao/**",
                     "/api/user/google/**",
-                    "/api/stock/**",
+                    "/api/stock/prices",
+                    "/api/stock/prices/**",
+                    "/api/stock/items",
                     "/api/news/**",
                     "/ws/**"
                 ).permitAll()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/stock/collect/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
