@@ -180,7 +180,7 @@ public class UserService {
 	    return processSocialLogin(email, nickname, "GOOGLE_");
 	}
     public void linkGoogle(String token, String code) throws Exception {
-        UserDto user = getUserFromToken(token);
+        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
         HttpClient client = HttpClient.newHttpClient();
 
         String tokenBody = String.format(
@@ -206,7 +206,7 @@ public class UserService {
     }
 
     public void linkKakao(String token, String code) throws Exception {
-        UserDto user = getUserFromToken(token);
+        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
         HttpClient client = HttpClient.newHttpClient();
 
         String tokenBody = String.format(
@@ -249,8 +249,8 @@ public class UserService {
         if (user != null) refreshTokenDao.deleteByUserId(user.getUserId());
     }
 
-    public void addWatchlist(String token, int itemId) {
-        userDao.insertWatchlist(getUserFromToken(token).getUserId(), itemId);
+    public void addWatchlist(String email, int itemId) {
+        userDao.insertWatchlist(getUser(email).getUserId(), itemId);
     }
 
     public void forgotPassword(String email) throws Exception {
@@ -303,12 +303,12 @@ public class UserService {
         return userDao.findByEmail(email);
     }
 
-    public List<UserSocialDto> getSocialLinks(String token) {
-        return userSocialDao.selectByUserId(getUserFromToken(token).getUserId());
+    public List<UserSocialDto> getSocialLinks(String email) {
+        return userSocialDao.selectByUserId(getUser(email).getUserId());
     }
 
-    public Map<String, String> getUserInfo(String token) {
-        UserDto user = getUserFromToken(token);
+    public Map<String, String> getUserInfo(String email) {
+        UserDto user = getUser(email);
         Map<String, String> info = new HashMap<>();
         
         info.put("email", user.getEmail());
@@ -322,25 +322,25 @@ public class UserService {
         return info;
     }
 
-    public List<Integer> getWatchlist(String token) {
-        return userDao.selectWatchlist(getUserFromToken(token).getUserId());
+    public List<Integer> getWatchlist(String email) {
+        return userDao.selectWatchlist(getUser(email).getUserId());
     }
 
-    public List<StockPriceDto> getWatchlistDetail(String token) {
-        List<Integer> itemIds = userDao.selectWatchlist(getUserFromToken(token).getUserId());
+    public List<StockPriceDto> getWatchlistDetail(String email) {
+        List<Integer> itemIds = userDao.selectWatchlist(getUser(email).getUserId());
         if (itemIds.isEmpty()) return new ArrayList<>();
         return stockDao.selectLatestPricesByItemIds(itemIds);
     }
 
-    public void saveSocialLink(String token, UserSocialDto dto) {
-        dto.setUserId(getUserFromToken(token).getUserId());
+    public void saveSocialLink(String email, UserSocialDto dto) {
+        dto.setUserId(getUser(email).getUserId());
         dto.setProvider(dto.getProvider().toUpperCase());
         userSocialDao.insertSocial(dto);
     }
 
-    public void changePassword(String token, String currentPassword, String newPassword) {
+    public void changePassword(String email, String currentPassword, String newPassword) {
         validator.validatePassword(newPassword);
-        UserDto user = getUserFromToken(token);
+        UserDto user = getUser(email);
         if (!passwordEncoder.matches(currentPassword, user.getPassword()))
             throw new RuntimeException("현재 비밀번호가 틀렸습니다.");
         user.setPassword(passwordEncoder.encode(newPassword));
@@ -357,25 +357,25 @@ public class UserService {
         emailService.sendVerificationEmail(email, token);
     }
 
-    public void updateNickname(String token, String nickname) {
+    public void updateNickname(String email, String nickname) {
         validator.validateNickname(nickname);
-        UserDto user = getUserFromToken(token);
+        UserDto user = getUser(email);
         user.setNickname(nickname);
         userDao.updateNickname(user);
     }
 
-    public void deleteAccount(String token) {
-        UserDto user = getUserFromToken(token);
+    public void deleteAccount(String email) {
+        UserDto user = getUser(email);
         refreshTokenDao.deleteByUserId(user.getUserId());
         userDao.deleteUser(user.getUserId());
     }
 
-    public void removeWatchlist(String token, int itemId) {
-        userDao.deleteWatchlist(getUserFromToken(token).getUserId(), itemId);
+    public void removeWatchlist(String email, int itemId) {
+        userDao.deleteWatchlist(getUser(email).getUserId(), itemId);
     }
 
-    public void unlinkSocial(String token, String provider) {
-        userSocialDao.deleteSocial(getUserFromToken(token).getUserId(), provider.toUpperCase());
+    public void unlinkSocial(String email, String provider) {
+        userSocialDao.deleteSocial(getUser(email).getUserId(), provider.toUpperCase());
     }
 
     private String fetchAccessToken(HttpClient client, String url, String body) throws Exception {
@@ -402,8 +402,12 @@ public class UserService {
         return new ObjectMapper().readTree(res.body());
     }
 
-    private UserDto getUserFromToken(String token) {
-        return userDao.findByEmail(jwtUtil.getEmailFromAccess(token));
+    public long getUserId(String email) {
+        return getUser(email).getUserId();
+    }
+
+    private UserDto getUser(String email) {
+        return userDao.findByEmail(email);
     }
 
     private Map<String, String> issueTokens(UserDto user) {
@@ -440,10 +444,6 @@ public class UserService {
         tokens.put("role",     user.getRole() != null ? user.getRole() : "USER");
         return tokens;
     }
-    public long getUserIdFromToken(String token) {
-        return getUserFromToken(token).getUserId();
-    }
-
     public String updateProfileImage(Long userId, org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
         validateImageFile(file);
         String currentImageUrl = userDao.findProfileImageUrl(userId);

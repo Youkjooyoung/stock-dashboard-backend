@@ -6,7 +6,6 @@ import java.util.Map;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
-import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.dao.PriceAlertDao;
 import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
@@ -23,13 +22,12 @@ import lombok.extern.slf4j.Slf4j;
 public class PriceAlertService {
 
     private final PriceAlertDao         alertDao;
-    private final JwtUtil               jwtUtil;
     private final SimpMessagingTemplate messagingTemplate;
     private final StockDao              stockDao;
     private final UserDao               userDao;
 
-    public void addAlert(String token, PriceAlertDto dto) {
-        UserDto user = getUserFromToken(token);
+    public void addAlert(String email, PriceAlertDto dto) {
+        UserDto user = getUser(email);
         dto.setUserId(user.getUserId());
         alertDao.insertAlert(dto);
     }
@@ -100,18 +98,18 @@ public class PriceAlertService {
         }
     }
 
-    public void deleteAlert(String token, int alertId) {
-        UserDto user = getUserFromToken(token);
+    public void deleteAlert(String email, int alertId) {
+        UserDto user = getUser(email);
         alertDao.deleteAlert(alertId, user.getUserId());
     }
 
-    public List<PriceAlertDto> getMyAlerts(String token) {
-        UserDto user = getUserFromToken(token);
+    public List<PriceAlertDto> getMyAlerts(String email) {
+        UserDto user = getUser(email);
         return alertDao.selectByUserId(user.getUserId());
     }
 
-    private UserDto getUserFromToken(String token) {
-        return userDao.findByEmail(jwtUtil.getEmailFromAccess(token));
+    private UserDto getUser(String email) {
+        return userDao.findByEmail(email);
     }
 
     private void sendAlert(String destination, Map<String, Object> payload) {

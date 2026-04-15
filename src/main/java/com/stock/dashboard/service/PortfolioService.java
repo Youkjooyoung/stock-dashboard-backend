@@ -4,7 +4,6 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.dao.PortfolioDao;
 import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dto.PortfolioDto;
@@ -18,25 +17,24 @@ public class PortfolioService {
 
     private final PortfolioDao portfolioDao;
     private final UserDao      userDao;
-    private final JwtUtil      jwtUtil;
 
-    public List<PortfolioDto> getMyPortfolio(String token) {
-        UserDto user = getUser(token);
+    public List<PortfolioDto> getMyPortfolio(String email) {
+        UserDto user = getUser(email);
         return portfolioDao.selectByUserId(user.getUserId());
     }
 
-    public void addPortfolio(String token, PortfolioDto dto) {
-        UserDto user = getUser(token);
+    public void addPortfolio(String email, PortfolioDto dto) {
+        UserDto user = getUser(email);
         dto.setUserId(user.getUserId());
         portfolioDao.insertPortfolio(dto);
     }
 
-    public void deletePortfolio(String token, int portfolioId) {
-        UserDto user = getUser(token);
+    public void deletePortfolio(String email, int portfolioId) {
+        UserDto user = getUser(email);
         portfolioDao.deletePortfolio(portfolioId, user.getUserId());
     }
 
-    private UserDto getUser(String token) {
-        return userDao.findByEmail(jwtUtil.getEmailFromAccess(token));
+    private UserDto getUser(String email) {
+        return userDao.findByEmail(email);
     }
 }
