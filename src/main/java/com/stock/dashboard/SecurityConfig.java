@@ -63,6 +63,8 @@ public class SecurityConfig {
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
                     "/api/auth/portone/verify",
+                    "/api/auth/recover-account",
+                    "/api/auth/check-deleted",
                     "/api/auth/kakao/**",
                     "/api/auth/google/**",
                     "/api/auth/kakao/exchange",

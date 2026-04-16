@@ -53,4 +53,12 @@ public interface UserDao {
 	String findProfileImageUrl(long userId);
 
         void updateProfileImageUrl(@org.apache.ibatis.annotations.Param("userId") long userId, @org.apache.ibatis.annotations.Param("imageUrl") String imageUrl);
+
+	UserDto findByEmailIncludeDeleted(String email);
+
+	void softDeleteUser(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("deleteReason") String deleteReason);
+
+	void restoreUser(int userId);
+
+	void updateForcePwChange(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("forcePwChange") String forcePwChange);
 }

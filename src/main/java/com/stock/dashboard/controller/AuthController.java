@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -128,10 +129,10 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestBody UserDto dto) {
         Map<String, String> tokens = userService.login(dto);
-        UserDto user = userService.findByEmail(dto.getEmail());
         Map<String, Object> res = new HashMap<>(tokens);
-        res.put("userId", user.getUserId());
-        res.put("role", user.getRole() != null ? user.getRole() : "USER");
+        if ("Y".equals(tokens.get("forcePwChange"))) {
+            res.put("forcePwChange", true);
+        }
         return ResponseEntity.ok(res);
     }
 
@@ -170,17 +171,37 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "이메일 인증이 완료되었습니다."));
     }
 
+    @PostMapping("/verify-identity")
+    public ResponseEntity<Map<String, String>> verifyIdentity(
+            @RequestHeader("Authorization") String auth,
+            @RequestBody Map<String, String> body) {
+        String token = auth.replace("Bearer ", "");
+        return ResponseEntity.ok(userService.verifyIdentityForAction(token, body.get("impUid")));
+    }
+
+    @PostMapping("/recover-account")
+    public ResponseEntity<Map<String, String>> recoverAccount(@RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(userService.recoverAccount(
+            body.get("email"), body.get("name"), body.get("phone")
+        ));
+    }
+
+    @PostMapping("/check-deleted")
+    public ResponseEntity<Map<String, Object>> checkDeleted(@RequestBody Map<String, String> body) {
+        return ResponseEntity.ok(userService.checkDeletedAccount(body.get("email")));
+    }
+
     private String buildOAuthRedirect(Map<String, String> tokens, String provider) throws Exception {
-        // 토큰을 URL 쿼리가 아닌 fragment(#)로 전달 → 서버 로그/리퍼러에 노출되지 않음
         return String.format(
-            "%s/oauth#accessToken=%s&refreshToken=%s&email=%s&nickname=%s&provider=%s&role=%s",
+            "%s/oauth#accessToken=%s&refreshToken=%s&email=%s&nickname=%s&provider=%s&role=%s&userId=%s",
             appBaseUrl,
             tokens.get("accessToken"),
             tokens.get("refreshToken"),
             tokens.get("email"),
             URLEncoder.encode(tokens.getOrDefault("nickname", ""), StandardCharsets.UTF_8),
             provider,
-            tokens.getOrDefault("role", "USER")
+            tokens.getOrDefault("role", "USER"),
+            tokens.getOrDefault("userId", "")
         );
     }
 }

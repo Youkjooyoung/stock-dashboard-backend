@@ -148,6 +148,7 @@ src/
 │   ├── ErrorBoundary.jsx
 │   ├── FloatingAiChat.jsx
 │   ├── Header.jsx
+│   ├── IdentityVerifyModal.jsx
 │   ├── NewsSection.jsx
 │   ├── PhoneVerifyStep.jsx
 │   ├── ProfileImageUpload.jsx
@@ -170,6 +171,7 @@ src/
 ├── pages/
 │   ├── AdminPage.jsx
 │   ├── ComparePage.jsx
+│   ├── ChangePasswordPage.jsx
 │   ├── DashboardPage.jsx
 │   ├── ForgotPasswordPage.jsx
 │   ├── LoginPage.jsx
@@ -545,7 +547,10 @@ USERS
   ACCOUNT_LOCKED, LOGIN_FAIL_CNT,
   ROLE,           -- USER / ADMIN
   PW_RESET_TOKEN, PW_RESET_EXPIRES,
-  PROFILE_IMAGE_URL, CREATED_AT
+  PROFILE_IMAGE_URL, CREATED_AT,
+  DELETED_AT,     -- 소프트 삭제 일시 (NULL이면 활성 계정)
+  DELETE_REASON,  -- 탈퇴 사유
+  FORCE_PW_CHANGE -- 'Y'/'N' 임시 비밀번호 → 강제 비밀번호 변경
 
 USER_SOCIAL
   SOCIAL_ID, USER_ID, PROVIDER, PROVIDER_EMAIL, CREATED_AT
@@ -593,6 +598,9 @@ POST /api/auth/resend-verify
 GET  /api/auth/verify-email
 GET  /api/auth/check-email
 POST /api/auth/certify
+POST /api/auth/verify-identity
+POST /api/auth/recover-account
+POST /api/auth/check-deleted
 
 # OAuth2 소셜 로그인
 GET  /api/auth/kakao/login
@@ -682,6 +690,10 @@ merge: Java 17 → 21 LTS 업그레이드 반영
 - [x] 카카오/구글 소셜 로그인 (USER_SOCIAL 연동 계정 자동 매칭)
 - [x] 소셜 계정 연동/해제 (USER_SOCIAL, state 파라미터 JWT 인코딩)
 - [x] 프로필 이미지 업로드 (AWS S3)
+- [x] 비밀번호 변경 페이지 분리 (/change-password, PortOne 본인인증 필수)
+- [x] 회원탈퇴 PortOne 본인인증 + 2주 소프트 삭제 보류
+- [x] 탈퇴 계정 복구 (회원가입 시 감지 → 임시 비밀번호 발급 → 강제 비밀번호 변경)
+- [x] 보안 검증 토큰 (5분 만료, sessionStorage, 다이렉트 URL 접근 차단)
 
 **주식 기능**
 - [x] 주식 시세 조회 / 즐겨찾기
@@ -705,13 +717,21 @@ merge: Java 17 → 21 LTS 업그레이드 반영
 **관리자**
 - [x] 로그인 시 ADMIN → /admin 자동 이동 (role 기반 라우터 분기)
 - [x] 통계 탭 (전체회원/오늘가입/이메일인증/계정잠금, 즐겨찾기 TOP5)
-- [x] 회원 관리 탭 (잠금해제, 메일재발송, 권한변경)
+- [x] 회원 관리 탭 (검색/권한 필터/상태 필터/컬럼 정렬/페이지네이션, 잠금해제, 메일재발송, 권한변경)
 - [x] 주식 관리 탭 (STOCK_ITEM 종목 목록)
 - [x] 알림 관리 탭 (PRICE_ALERT 전체 목록)
 - [x] AI 채팅 이력 탭 (CHAT_MESSAGE 최신 500건)
 
 ## 진행 중 / 예정
 
-- [ ] 소셜 로그인(OAuth) 시 role 미전달 버그 수정
-- [ ] 관리자 회원 탭 검색/필터 기능 추가
-- [ ] 포트폴리오 수익률 차트 강화
+- [ ] (다음 항목은 다음 고도화 사이클에서 정의)
+
+---
+
+## 변경 이력
+
+| 날짜 | 변경 내용 | 서버 |
+|------|-----------|------|
+| 2026-04-16 | PortOne 본인인증 기반 비밀번호 변경/회원탈퇴, 2주 소프트 삭제 보류, 탈퇴 계정 복구(임시 비밀번호 발급 + 강제 변경), 보안 검증 토큰(5분 만료, sessionStorage), 다이렉트 URL 접근 차단 | 백엔드, 프론트엔드 |
+| 2026-04-16 | 비밀번호 변경 페이지 분리 (/change-password), FloatingAiChat FAQ 초기 닫힘 상태, AI 분석 입력란 통합 | 프론트엔드 |
+| 2026-04-16 | OAuth 로그인 role/userId 전달 일관화 (`issueTokens`로 일원화, 중복 `put` 제거, 소셜 로그인 URL fragment에 userId 추가), 관리자 회원 탭 검색·권한·상태 필터·컬럼 정렬·페이지네이션 추가, 포트폴리오 탭 차트 강화(손익 내림차순 정렬·최고수익/최대손실 하이라이트·투자금 vs 평가금 비교 차트·보유 종목 정렬 옵션) | 백엔드, 프론트엔드 |

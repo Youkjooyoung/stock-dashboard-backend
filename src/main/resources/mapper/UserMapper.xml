@@ -5,7 +5,7 @@
 <mapper namespace="com.stock.dashboard.dao.UserDao">
 
     <select id="checkEmailExists" parameterType="String" resultType="int">
-        SELECT COUNT(*) FROM USERS WHERE EMAIL = #{email}
+        SELECT COUNT(*) FROM USERS WHERE EMAIL = #{email} AND DELETED_AT IS NULL
     </select>
 
     <select id="checkNicknameExists" parameterType="String" resultType="int">
@@ -25,9 +25,10 @@
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
                ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
-               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
         FROM USERS
-        WHERE EMAIL = #{email}
+        WHERE EMAIL = #{email} AND DELETED_AT IS NULL
     </select>
 
     <select id="findByPasswordResetToken" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
@@ -131,5 +132,35 @@
 
     <update id="updateProfileImageUrl">
          UPDATE USERS SET profile_image_url = #{imageUrl} WHERE USER_ID = #{userId}
+    </update>
+
+    <select id="findByEmailIncludeDeleted" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
+        SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
+               ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+               EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
+        FROM USERS
+        WHERE EMAIL = #{email}
+    </select>
+
+    <update id="softDeleteUser">
+        UPDATE USERS
+        SET DELETED_AT = NOW(),
+            DELETE_REASON = #{deleteReason}
+        WHERE USER_ID = #{userId}
+    </update>
+
+    <update id="restoreUser" parameterType="int">
+        UPDATE USERS
+        SET DELETED_AT = NULL,
+            DELETE_REASON = NULL
+        WHERE USER_ID = #{userId}
+    </update>
+
+    <update id="updateForcePwChange">
+        UPDATE USERS
+        SET FORCE_PW_CHANGE = #{forcePwChange}
+        WHERE USER_ID = #{userId}
     </update>
 </mapper>

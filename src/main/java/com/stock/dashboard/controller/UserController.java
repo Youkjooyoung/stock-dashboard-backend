@@ -56,8 +56,10 @@ public class UserController {
     }
 
     @DeleteMapping("/account")
-    public ResponseEntity<String> deleteAccount(@RequestHeader("Authorization") String token) {
-        userService.deleteAccount(extractToken(token));
+    public ResponseEntity<String> deleteAccount(
+            @RequestHeader("Authorization") String token,
+            @RequestBody Map<String, String> body) {
+        userService.deleteAccount(extractToken(token), body.get("verifyToken"), body.get("deleteReason"));
         return ResponseEntity.ok("탈퇴 완료");
     }
 
@@ -123,7 +125,7 @@ public class UserController {
     public ResponseEntity<String> changePassword(
             @RequestHeader("Authorization") String token,
             @RequestBody Map<String, String> body) {
-        userService.changePassword(extractToken(token), body.get("currentPassword"), body.get("newPassword"));
+        userService.changePassword(extractToken(token), body.get("verifyToken"), body.get("newPassword"));
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
 
