@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -123,8 +124,13 @@ public class UserService {
         }
 
         userDao.resetLoginFail(req.getEmail());
-        return issueTokens(user);
+        Map<String, String> tokens = issueTokens(user);
+        if ("Y".equals(user.getForcePwChange())) {
+            tokens.put("forcePwChange", "Y");
+        }
+        return tokens;
     }
+
     public Map<String, String> kakaoLogin(String code) throws Exception {
         HttpClient client = HttpClient.newHttpClient();
         String tokenBody = String.format(
@@ -164,9 +170,7 @@ public class UserService {
             UserDto linkedUser = userDao.findById(linked.getUserId());
             if (linkedUser != null) {
                 Map<String, String> tokens = issueTokens(linkedUser);
-                tokens.put("email",    linkedUser.getEmail());
                 tokens.put("nickname", nickname);
-                tokens.put("role",     linkedUser.getRole() != null ? linkedUser.getRole() : "USER");
                 return tokens;
             }
         }
@@ -331,13 +335,24 @@ public class UserService {
         userSocialDao.insertSocial(dto);
     }
 
-    public void changePassword(String email, String currentPassword, String newPassword) {
+    public void changePassword(String email, String verifyToken, String newPassword) {
+        if (verifyToken == null || verifyToken.isBlank()) {
+            throw new RuntimeException("본인인증이 필요합니다.");
+        }
+        if (!jwtUtil.validateVerifyToken(verifyToken)) {
+            throw new RuntimeException("본인인증이 만료되었습니다. 다시 인증해주세요.");
+        }
         validator.validatePassword(newPassword);
         UserDto user = getUser(email);
-        if (!passwordEncoder.matches(currentPassword, user.getPassword()))
-            throw new RuntimeException("현재 비밀번호가 틀렸습니다.");
+        String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
+        if (!user.getEmail().equals(verifyEmail)) {
+            throw new RuntimeException("본인인증 정보가 일치하지 않습니다.");
+        }
         user.setPassword(passwordEncoder.encode(newPassword));
         userDao.updatePassword(user);
+        if ("Y".equals(user.getForcePwChange())) {
+            userDao.updateForcePwChange(user.getUserId(), "N");
+        }
     }
 
     public void resendVerifyEmail(String email) throws Exception {
@@ -357,10 +372,20 @@ public class UserService {
         userDao.updateNickname(user);
     }
 
-    public void deleteAccount(String email) {
+    public void deleteAccount(String email, String verifyToken, String deleteReason) {
+        if (verifyToken == null || verifyToken.isBlank()) {
+            throw new RuntimeException("본인인증이 필요합니다.");
+        }
+        if (!jwtUtil.validateVerifyToken(verifyToken)) {
+            throw new RuntimeException("본인인증이 만료되었습니다. 다시 인증해주세요.");
+        }
         UserDto user = getUser(email);
+        String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
+        if (!user.getEmail().equals(verifyEmail)) {
+            throw new RuntimeException("본인인증 정보가 일치하지 않습니다.");
+        }
         refreshTokenDao.deleteByUserId(user.getUserId());
-        userDao.deleteUser(user.getUserId());
+        userDao.softDeleteUser(user.getUserId(), deleteReason != null ? deleteReason : "");
     }
 
     public void removeWatchlist(String email, int itemId) {
@@ -369,6 +394,93 @@ public class UserService {
 
     public void unlinkSocial(String email, String provider) {
         userSocialDao.deleteSocial(getUser(email).getUserId(), provider.toUpperCase());
+    }
+
+    public Map<String, String> verifyIdentityForAction(String token, String impUid) {
+        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
+        if (user == null) throw new RuntimeException("사용자 정보를 찾을 수 없습니다.");
+        if (impUid == null || impUid.isBlank()) throw new RuntimeException("본인인증 정보가 없습니다.");
+
+        Map<String, String> certData;
+        try {
+            certData = portoneService.getCertification(impUid);
+        } catch (Exception e) {
+            log.error("[본인인증] PortOne 인증 조회 실패: {}", e.getMessage(), e);
+            throw new RuntimeException("본인인증 정보 확인에 실패했습니다.");
+        }
+
+        String certName  = certData.get("name");
+        String certPhone = certData.get("phone");
+
+        if (certName == null || certPhone == null) {
+            throw new RuntimeException("본인인증 정보를 가져올 수 없습니다.");
+        }
+
+        String userName  = user.getName() != null ? user.getName() : "";
+        String userPhone = user.getPhone() != null ? user.getPhone() : "";
+        String normalizedCertPhone = certPhone.replaceAll("-", "");
+        String normalizedUserPhone = userPhone.replaceAll("-", "");
+
+        if (!userName.equals(certName) || !normalizedUserPhone.equals(normalizedCertPhone)) {
+            throw new RuntimeException("본인인증 정보가 회원 정보와 일치하지 않습니다.");
+        }
+
+        String verifyToken = jwtUtil.generateVerifyToken(user.getEmail());
+        return Map.of("verifyToken", verifyToken);
+    }
+
+    public Map<String, String> recoverAccount(String email, String name, String phone) {
+        UserDto deletedUser = userDao.findByEmailIncludeDeleted(email);
+        if (deletedUser == null || deletedUser.getDeletedAt() == null) {
+            throw new RuntimeException("복구 가능한 계정이 없습니다.");
+        }
+        long diffMs = System.currentTimeMillis() - deletedUser.getDeletedAt().getTime();
+        long twoWeeksMs = 14L * 24 * 60 * 60 * 1000;
+        if (diffMs > twoWeeksMs) {
+            throw new RuntimeException("복구 기간(2주)이 만료된 계정입니다.");
+        }
+        if (!deletedUser.getName().equals(name) || !deletedUser.getPhone().equals(phone)) {
+            throw new RuntimeException("본인인증 정보가 탈퇴 계정 정보와 일치하지 않습니다.");
+        }
+        String tempPassword = generateTempPassword();
+        deletedUser.setPassword(passwordEncoder.encode(tempPassword));
+        userDao.updatePassword(deletedUser);
+        userDao.restoreUser(deletedUser.getUserId());
+        userDao.updateForcePwChange(deletedUser.getUserId(), "Y");
+        try {
+            emailService.sendTempPasswordEmail(email, tempPassword);
+        } catch (Exception e) {
+            log.error("[복구] 임시 비밀번호 이메일 발송 실패: {}", e.getMessage(), e);
+            throw new RuntimeException("임시 비밀번호 이메일 발송에 실패했습니다.");
+        }
+        return Map.of("message", "계정이 복구되었습니다. 이메일로 발송된 임시 비밀번호로 로그인해주세요.");
+    }
+
+    public Map<String, Object> checkDeletedAccount(String email) {
+        UserDto user = userDao.findByEmailIncludeDeleted(email);
+        Map<String, Object> result = new HashMap<>();
+        if (user != null && user.getDeletedAt() != null) {
+            long diffMs = System.currentTimeMillis() - user.getDeletedAt().getTime();
+            long twoWeeksMs = 14L * 24 * 60 * 60 * 1000;
+            if (diffMs <= twoWeeksMs) {
+                result.put("deleted", true);
+                result.put("recoverable", true);
+                return result;
+            }
+        }
+        result.put("deleted", false);
+        result.put("recoverable", false);
+        return result;
+    }
+
+    private String generateTempPassword() {
+        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     private String fetchAccessToken(HttpClient client, String url, String body) throws Exception {
@@ -418,6 +530,10 @@ public class UserService {
         Map<String, String> tokens = new HashMap<>();
         tokens.put("accessToken",  accessToken);
         tokens.put("refreshToken", refreshToken);
+        tokens.put("email",        user.getEmail());
+        tokens.put("userId",       String.valueOf(user.getUserId()));
+        tokens.put("role",         user.getRole() != null ? user.getRole() : "USER");
+        tokens.put("nickname",     user.getNickname() != null ? user.getNickname() : "");
         return tokens;
     }
 
@@ -432,9 +548,7 @@ public class UserService {
         }
 
         Map<String, String> tokens = issueTokens(user);
-        tokens.put("email",    email);
         tokens.put("nickname", nickname);
-        tokens.put("role",     user.getRole() != null ? user.getRole() : "USER");
         return tokens;
     }
     public String updateProfileImage(Long userId, org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {

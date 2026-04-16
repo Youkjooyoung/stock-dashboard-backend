@@ -24,4 +24,7 @@ public class UserDto {
 	private int loginFailCnt;
 	private String accountLocked;
 	private Date createdAt;
+	private Date deletedAt;
+	private String deleteReason;
+	private String forcePwChange;
 }

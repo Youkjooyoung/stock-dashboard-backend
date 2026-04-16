@@ -13,8 +13,9 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtUtil {
 
-	private static final long ACCESS_EXPIRATION  = 1000L * 60 * 60;          // 1시간
-	private static final long REFRESH_EXPIRATION = 1000L * 60 * 60 * 24 * 7; // 7일
+	private static final long ACCESS_EXPIRATION       = 1000L * 60 * 60;          // 1시간
+	private static final long REFRESH_EXPIRATION      = 1000L * 60 * 60 * 24 * 7; // 7일
+	private static final long VERIFY_TOKEN_EXPIRATION = 1000L * 60 * 5;           // 5분
 
 	private final SecretKey accessKey;
 	private final SecretKey refreshKey;
@@ -67,6 +68,18 @@ public class JwtUtil {
 
 	public boolean validateRefreshToken(String token) {
 		return validate(token, refreshKey);
+	}
+
+	public String generateVerifyToken(String email) {
+		return buildToken(email, VERIFY_TOKEN_EXPIRATION, accessKey);
+	}
+
+	public String getEmailFromVerifyToken(String token) {
+		return getSubject(token, accessKey);
+	}
+
+	public boolean validateVerifyToken(String token) {
+		return validate(token, accessKey);
 	}
 
 	private String buildToken(String email, long expiration, SecretKey key) {

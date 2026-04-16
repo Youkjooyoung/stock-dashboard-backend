@@ -137,4 +137,42 @@ public class EmailService {
 
         log.info("[이메일] 수집 완료 알림 발송: {} ({})", toEmail, response.statusCode());
     }
+
+    public void sendTempPasswordEmail(String toEmail, String tempPassword) throws Exception {
+        String html = """
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+              <h2 style="color:#4f8ef7">주식 대시보드 계정 복구</h2>
+              <p>탈퇴된 계정이 복구되었습니다. 아래 임시 비밀번호로 로그인해주세요.</p>
+              <div style="background:#f5f7fa;border-radius:8px;padding:16px 20px;margin:16px 0;text-align:center">
+                <p style="margin:0 0 4px;color:#999;font-size:12px">임시 비밀번호</p>
+                <p style="margin:0;font-size:20px;font-weight:bold;letter-spacing:2px;color:#333">%s</p>
+              </div>
+              <p style="color:#e24c4b;font-size:13px;font-weight:bold">
+                로그인 후 반드시 비밀번호를 변경해주세요.
+              </p>
+              <p style="color:#999;font-size:12px;margin-top:16px">
+                본인이 요청하지 않은 경우 이 이메일을 무시하세요.
+              </p>
+            </div>
+            """.formatted(tempPassword);
+
+        String body = mapper.writeValueAsString(Map.of(
+            "from",    fromEmail,
+            "to",      new String[]{ toEmail },
+            "subject", "[주식 대시보드] 계정 복구 - 임시 비밀번호 안내",
+            "html",    html
+        ));
+
+        HttpResponse<String> response = HttpClient.newHttpClient().send(
+            HttpRequest.newBuilder()
+                .uri(URI.create(RESEND_URL))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+
+        log.info("[이메일] 임시 비밀번호 발송: {} ({})", toEmail, response.statusCode());
+    }
 }

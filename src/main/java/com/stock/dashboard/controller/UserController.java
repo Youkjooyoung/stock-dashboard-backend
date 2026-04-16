@@ -30,8 +30,10 @@ public class UserController {
     private final UserService userService;
 
     @DeleteMapping("/account")
-    public ResponseEntity<String> deleteAccount(@AuthenticationPrincipal String email) {
-        userService.deleteAccount(email);
+    public ResponseEntity<String> deleteAccount(
+            @AuthenticationPrincipal String email,
+            @RequestBody Map<String, String> body) {
+        userService.deleteAccount(email, body.get("verifyToken"), body.get("deleteReason"));
         return ResponseEntity.ok("탈퇴 완료");
     }
 
@@ -97,7 +99,7 @@ public class UserController {
     public ResponseEntity<String> changePassword(
             @AuthenticationPrincipal String email,
             @RequestBody Map<String, String> body) {
-        userService.changePassword(email, body.get("currentPassword"), body.get("newPassword"));
+        userService.changePassword(email, body.get("verifyToken"), body.get("newPassword"));
         return ResponseEntity.ok("비밀번호 변경 완료");
     }
 
