@@ -1,0 +1,53 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+jobs:
+  build-and-test:
+    name: Build & Test (JDK 21)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Show Java version
+        run: java -version
+
+      - name: Run unit tests (excluding Testcontainers)
+        run: ./mvnw -B test -Dtest='!*IntegrationTest'
+
+      - name: Run Testcontainers integration tests
+        env:
+          RUN_INTEGRATION_TESTS: 'true'
+        run: ./mvnw -B test -Dtest='*IntegrationTest'
+
+      - name: Package (skip tests, already ran)
+        run: ./mvnw -B package -DskipTests
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
+
+      - name: Publish test summary
+        if: always()
+        uses: mikepenz/action-junit-report@v4
+        with:
+          report_paths: 'target/surefire-reports/TEST-*.xml'
+          require_tests: true
+          check_name: 'Backend Test Results'

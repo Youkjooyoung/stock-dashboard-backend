@@ -736,6 +736,7 @@ merge: Java 17 → 21 LTS 업그레이드 반영
 
 - [ ] Resend 이메일 발송 커스텀 도메인 전환 (현재 sandbox `onboarding@resend.dev`)
 - [ ] Docker Compose 도입 (백엔드 + DB)
+- [ ] GitHub Actions Secrets 등록 후 CI/CD 실전 검증
 
 ---
 
@@ -746,3 +747,5 @@ merge: Java 17 → 21 LTS 업그레이드 반영
 | 2026-04-16 | PortOne 본인인증 기반 비밀번호 변경/회원탈퇴, 2주 소프트 삭제 보류, 탈퇴 계정 복구(임시 비밀번호 발급 + 강제 변경), 보안 검증 토큰(5분 만료, sessionStorage), 다이렉트 URL 접근 차단 | 백엔드, 프론트엔드 |
 | 2026-04-16 | 비밀번호 변경 페이지 분리 (/change-password), FloatingAiChat FAQ 초기 닫힘 상태, AI 분석 입력란 통합 | 프론트엔드 |
 | 2026-04-16 | OAuth 로그인 role/userId 전달 일관화 (`issueTokens`로 일원화, 중복 `put` 제거, 소셜 로그인 URL fragment에 userId 추가), 관리자 회원 탭 검색·권한·상태 필터·컬럼 정렬·페이지네이션 추가, 포트폴리오 탭 차트 강화(손익 내림차순 정렬·최고수익/최대손실 하이라이트·투자금 vs 평가금 비교 차트·보유 종목 정렬 옵션), P0-P3 보안/리팩토링(@AuthenticationPrincipal, UserLoginRequest/UserSignupRequest DTO 분리) 통합 | 백엔드, 프론트엔드 |
+| 2026-04-16 | **A-3 코드 품질 증명**: JUnit5 + Mockito 단위 테스트 3종 (UserServiceTest 19/JwtUtilTest 9/InputValidatorTest 파라미터화), Testcontainers MySQL 8 통합 테스트 (UserDaoIntegrationTest 7 — 소프트삭제·복구·로그인실패 누적잠금 플로우), pom.xml Testcontainers 1.20.4 의존성 추가, `docs/ENHANCEMENT_PROGRESS.md` 트래킹 문서 신설 | 백엔드 |
+| 2026-04-16 | **A-4 자동화 역량**: GitHub Actions CI 워크플로 (backend `ci.yml`: JDK 21 + Maven 캐시 + Surefire PR 코멘트 / frontend `ci.yml`: Node 20 + lint + build), 자동 배포 워크플로 (backend `deploy-backend.yml`: appleboy/ssh-action → mvn package → systemctl restart + 헬스체크 / frontend `deploy-frontend.yml`: Actions 빌드 → scp → nginx 원자 교체 + reload), 시크릿 스펙 문서화 (EC2_BACKEND_HOST/USER, EC2_FRONTEND_HOST/USER, EC2_SSH_KEY) | 백엔드, 프론트엔드 |
