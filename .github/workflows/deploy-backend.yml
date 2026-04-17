@@ -33,10 +33,17 @@ jobs:
             ./mvnw -B clean package -DskipTests
             echo "[3/4] 서비스 재시작"
             sudo systemctl restart stock-dashboard
-            echo "[4/4] 헬스체크 대기"
-            sleep 10
-            curl -fsS https://api.jyyouk.shop/actuator/health || \
-              curl -fsS -k https://localhost:8443/api/stock/prices -o /dev/null && echo "OK"
+            echo "[4/4] 헬스체크 (최대 60초, 3초 간격 재시도)"
+            for i in $(seq 1 20); do
+              if curl -fsS -m 3 https://api.jyyouk.shop/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
+                echo "OK (${i}회 시도, $((i*3))초 경과)"
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "헬스체크 60초 타임아웃 — 서비스 상태 수동 확인 필요"
+            sudo systemctl status stock-dashboard --no-pager | tail -20 || true
+            exit 1
 
       - name: Notify success
         if: success()
