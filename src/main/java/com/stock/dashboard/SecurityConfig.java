@@ -72,12 +72,7 @@ public class SecurityConfig {
                     "/api/stock/items",
                     "/api/news/**",
                     "/ws/**",
-                    "/actuator/health",
-                    "/actuator/health/**",
-                    "/actuator/info",
-                    "/actuator/prometheus",
-                    "/actuator/metrics",
-                    "/actuator/metrics/**"
+                    "/actuator/**"
                 ).permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/stock/collect/**").hasRole("ADMIN")
