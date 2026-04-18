@@ -1,5 +1,6 @@
 package com.stock.dashboard.controller;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +49,7 @@ public class ChatController {
             msg.setContent(content);
 
             chatDao.insertMessage(msg);
+            msg.setCreatedAt(new Date());
             messagingTemplate.convertAndSend("/topic/chat/" + ticker, msg);
             log.debug("채팅 전송: [{}] {} - {}", ticker, nickname, content);
 
