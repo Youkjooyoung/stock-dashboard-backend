@@ -307,15 +307,19 @@ public class UserService {
     public Map<String, String> getUserInfo(String email) {
         UserDto user = getUser(email);
         Map<String, String> info = new HashMap<>();
-        
+
         info.put("email", user.getEmail());
         info.put("nickname", user.getNickname());
-        
+
         String dateStr = "";
         if (user.getCreatedAt() != null) {
             dateStr = new SimpleDateFormat("yyyy-MM-dd").format(user.getCreatedAt());
         }
         info.put("createdAt", dateStr);
+
+        String profileImageUrl = userDao.findProfileImageUrl(user.getUserId());
+        info.put("profileImageUrl", profileImageUrl != null ? profileImageUrl : "");
+
         return info;
     }
 
