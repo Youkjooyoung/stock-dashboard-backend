@@ -6,15 +6,20 @@
 
     <insert id="insertMessage" parameterType="com.stock.dashboard.dto.ChatMessageDto">
         INSERT INTO CHAT_MESSAGE (TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT)
-        VALUES (#{ticker}, #{userEmail}, #{nickname}, #{content}, NOW())
+        VALUES (#{ticker}, #{userEmail}, #{nickname}, #{content}, UTC_TIMESTAMP())
     </insert>
 
     <select id="selectRecentMessages" resultType="com.stock.dashboard.dto.ChatMessageDto">
-        SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT
-        FROM CHAT_MESSAGE
-        WHERE TICKER = #{ticker}
-        ORDER BY CREATED_AT DESC
-        LIMIT #{limit}
+        SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT FROM (
+            SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT,
+                   DATE_FORMAT(CREATED_AT, '%Y-%m-%dT%H:%i:%s.000Z') AS CREATED_AT,
+                   CREATED_AT AS RAW_CREATED_AT
+            FROM CHAT_MESSAGE
+            WHERE TICKER = #{ticker}
+            ORDER BY RAW_CREATED_AT DESC
+            LIMIT #{limit}
+        ) AS recent
+        ORDER BY RAW_CREATED_AT ASC
     </select>
 
 </mapper>
