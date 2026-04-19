@@ -36,7 +36,7 @@ public class ChatController {
             @Payload Map<String, String> payload,
             @Header("Authorization") String token) {
         try {
-            String email    = jwtUtil.getEmailFromAccess(token.replace("Bearer ", ""));
+            String email    = jwtUtil.getEmailFromAccess(jwtUtil.stripBearer(token));
             String nickname = payload.getOrDefault("nickname", email.split("@")[0]);
             String content  = payload.getOrDefault("content", "").trim();
 

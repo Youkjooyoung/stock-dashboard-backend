@@ -32,7 +32,6 @@ public class EmailService {
 
     public void sendVerificationEmail(String toEmail, String token) throws Exception {
         String verifyUrl = baseUrl + "/verify-email?token=" + token;
-
         String html = """
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
               <h2 style="color:#00ff88">주식 대시보드 이메일 인증</h2>
@@ -42,35 +41,15 @@ public class EmailService {
                         color:#000;border-radius:8px;text-decoration:none;font-weight:bold">
                 이메일 인증하기
               </a>
-              <p style="color:#999;font-size:12px;margin-top:16px">
-                본 링크는 24시간 동안 유효합니다.
-              </p>
+              <p style="color:#999;font-size:12px;margin-top:16px">본 링크는 24시간 동안 유효합니다.</p>
             </div>
             """.formatted(verifyUrl);
-
-        String body = mapper.writeValueAsString(Map.of(
-            "from",    fromEmail,
-            "to",      new String[]{ toEmail },
-            "subject", "[주식 대시보드] 이메일 인증을 완료해 주세요",
-            "html",    html
-        ));
-
-        HttpResponse<String> response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder()
-                .uri(URI.create(RESEND_URL))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        );
-
-        log.info("[이메일] 인증 메일 발송: {} ({})", toEmail, response.statusCode());
+        int status = callResend(buildPayload(toEmail, "[주식 대시보드] 이메일 인증을 완료해 주세요", html));
+        log.info("[이메일] 인증 메일 발송: {} ({})", toEmail, status);
     }
 
     public void sendPasswordResetEmail(String toEmail, String token) throws Exception {
         String resetUrl = baseUrl + "/reset-password?token=" + token;
-
         String html = """
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
               <h2 style="color:#03C75A">주식 대시보드 비밀번호 재설정</h2>
@@ -85,25 +64,8 @@ public class EmailService {
               </p>
             </div>
             """.formatted(resetUrl);
-
-        String body = mapper.writeValueAsString(Map.of(
-            "from",    fromEmail,
-            "to",      new String[]{ toEmail },
-            "subject", "[주식 대시보드] 비밀번호 재설정 안내",
-            "html",    html
-        ));
-
-        HttpResponse<String> response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder()
-                .uri(URI.create(RESEND_URL))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        );
-
-        log.info("[이메일] 비밀번호 재설정 메일 발송: {} ({})", toEmail, response.statusCode());
+        int status = callResend(buildPayload(toEmail, "[주식 대시보드] 비밀번호 재설정 안내", html));
+        log.info("[이메일] 비밀번호 재설정 메일 발송: {} ({})", toEmail, status);
     }
 
     public void sendBulkCollectCompleteEmail(String toEmail, int total, String startDate, String endDate) throws Exception {
@@ -117,25 +79,8 @@ public class EmailService {
               </table>
             </div>
             """.formatted(startDate, endDate, total);
-
-        String body = mapper.writeValueAsString(Map.of(
-            "from",    fromEmail,
-            "to",      new String[]{ toEmail },
-            "subject", "[주식 대시보드] 과거 데이터 수집 완료",
-            "html",    html
-        ));
-
-        HttpResponse<String> response = HttpClient.newHttpClient().send(
-            HttpRequest.newBuilder()
-                .uri(URI.create(RESEND_URL))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        );
-
-        log.info("[이메일] 수집 완료 알림 발송: {} ({})", toEmail, response.statusCode());
+        int status = callResend(buildPayload(toEmail, "[주식 대시보드] 과거 데이터 수집 완료", html));
+        log.info("[이메일] 수집 완료 알림 발송: {} ({})", toEmail, status);
     }
 
     public void sendTempPasswordEmail(String toEmail, String tempPassword) throws Exception {
@@ -147,32 +92,32 @@ public class EmailService {
                 <p style="margin:0 0 4px;color:#999;font-size:12px">임시 비밀번호</p>
                 <p style="margin:0;font-size:20px;font-weight:bold;letter-spacing:2px;color:#333">%s</p>
               </div>
-              <p style="color:#e24c4b;font-size:13px;font-weight:bold">
-                로그인 후 반드시 비밀번호를 변경해주세요.
-              </p>
-              <p style="color:#999;font-size:12px;margin-top:16px">
-                본인이 요청하지 않은 경우 이 이메일을 무시하세요.
-              </p>
+              <p style="color:#e24c4b;font-size:13px;font-weight:bold">로그인 후 반드시 비밀번호를 변경해주세요.</p>
+              <p style="color:#999;font-size:12px;margin-top:16px">본인이 요청하지 않은 경우 이 이메일을 무시하세요.</p>
             </div>
             """.formatted(tempPassword);
+        int status = callResend(buildPayload(toEmail, "[주식 대시보드] 계정 복구 - 임시 비밀번호 안내", html));
+        log.info("[이메일] 임시 비밀번호 발송: {} ({})", toEmail, status);
+    }
 
-        String body = mapper.writeValueAsString(Map.of(
+    private String buildPayload(String toEmail, String subject, String html) throws Exception {
+        return mapper.writeValueAsString(Map.of(
             "from",    fromEmail,
             "to",      new String[]{ toEmail },
-            "subject", "[주식 대시보드] 계정 복구 - 임시 비밀번호 안내",
+            "subject", subject,
             "html",    html
         ));
+    }
 
-        HttpResponse<String> response = HttpClient.newHttpClient().send(
+    private int callResend(String json) throws Exception {
+        return HttpClient.newHttpClient().send(
             HttpRequest.newBuilder()
                 .uri(URI.create(RESEND_URL))
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build(),
             HttpResponse.BodyHandlers.ofString()
-        );
-
-        log.info("[이메일] 임시 비밀번호 발송: {} ({})", toEmail, response.statusCode());
+        ).statusCode();
     }
 }

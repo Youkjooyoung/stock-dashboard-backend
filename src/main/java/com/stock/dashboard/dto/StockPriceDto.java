@@ -9,7 +9,6 @@ import lombok.Data;
 public class StockPriceDto {
 	private String basDt;
 	private long clpr;
-	private double fltRt;
 	private long hipr;
 	private int itemId;
 	private String itmsNm;

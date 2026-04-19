@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.dto.UserDto;
 import com.stock.dashboard.dto.UserLoginRequest;
 import com.stock.dashboard.dto.UserSignupRequest;
@@ -34,6 +35,7 @@ public class AuthController {
     @Value("${google.redirect-uri}") private String googleRedirectUri;
     @Value("${app.base.url}")        private String appBaseUrl;
 
+    private final JwtUtil     jwtUtil;
     private final UserService userService;
 
     @PostMapping("/certify")
@@ -77,7 +79,7 @@ public class AuthController {
             @RequestParam String code,
             @RequestParam String token) throws Exception {
         userService.linkGoogle(token, code);
-        return ResponseEntity.ok(Map.<String, Object>of("success", true));
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     @GetMapping("/google/login")
@@ -107,7 +109,7 @@ public class AuthController {
             @RequestParam String code,
             @RequestParam String token) throws Exception {
         userService.linkKakao(token, code);
-        return ResponseEntity.ok(Map.<String, Object>of("success", true));
+        return ResponseEntity.ok(Map.of("success", true));
     }
 
     @GetMapping("/kakao/exchange")
@@ -177,7 +179,7 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> verifyIdentity(
             @RequestHeader("Authorization") String auth,
             @RequestBody Map<String, String> body) {
-        String token = auth.replace("Bearer ", "");
+        String token = jwtUtil.stripBearer(auth);
         return ResponseEntity.ok(userService.verifyIdentityForAction(token, body.get("impUid")));
     }
 

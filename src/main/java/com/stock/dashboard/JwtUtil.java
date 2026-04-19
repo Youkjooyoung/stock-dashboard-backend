@@ -82,6 +82,10 @@ public class JwtUtil {
 		return validate(token, accessKey);
 	}
 
+	public String stripBearer(String header) {
+		return header != null && header.startsWith("Bearer ") ? header.substring(7) : header;
+	}
+
 	private String buildToken(String email, long expiration, SecretKey key) {
 		return Jwts.builder().subject(email).issuedAt(new Date())
 				.expiration(new Date(System.currentTimeMillis() + expiration)).signWith(key).compact();
