@@ -556,7 +556,7 @@ USERS
   EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
   ACCOUNT_LOCKED, LOGIN_FAIL_CNT,
   ROLE,           -- USER / ADMIN
-  PW_RESET_TOKEN, PW_RESET_EXPIRES,
+  PASSWORD_RESET_TOKEN, PASSWORD_RESET_EXPIRY,
   PROFILE_IMAGE_URL, CREATED_AT,
   DELETED_AT,     -- 소프트 삭제 일시 (NULL이면 활성 계정)
   DELETE_REASON,  -- 탈퇴 사유
@@ -573,10 +573,10 @@ STOCK_PRICE
   HIGH_PRICE, LOW_PRICE, VOLUME, TRADE_DATE
 
 USER_WATCHLIST
-  WATCHLIST_ID, USER_ID, ITEM_ID, CREATED_AT
+  WATCHLIST_ID, USER_ID, ITEM_ID, ADDED_AT
 
 PORTFOLIO
-  PORTFOLIO_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
+  PORTFOLIO_ID, USER_ID, TICKER, STOCK_NAME,
   BUY_PRICE, QUANTITY, BUY_DATE, CREATED_AT
 
 PRICE_ALERT
@@ -585,7 +585,7 @@ PRICE_ALERT
   CREATED_AT, TRIGGERED_AT
 
 REFRESH_TOKEN
-  ID, USER_ID, TOKEN, EXPIRES_AT, CREATED_AT
+  TOKEN_ID, USER_ID, TOKEN, EXPIRED_AT, CREATED_AT
 
 CHAT_MESSAGE
   MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT
@@ -601,7 +601,6 @@ POST /api/auth/login
 POST /api/auth/signup
 POST /api/auth/logout
 POST /api/auth/refresh
-POST /api/auth/portone/verify
 POST /api/auth/forgot-password
 POST /api/auth/reset-password
 POST /api/auth/resend-verify
@@ -744,6 +743,7 @@ merge: Java 17 → 21 LTS 업그레이드 반영
 
 | 날짜 | 변경 내용 | 서버 |
 |------|-----------|------|
+| 2026-04-18 | **마이크로 핫픽스 번들**: `dfbf8f5` `GlobalExceptionHandler` 범위 `basePackages = "com.stock.dashboard.controller"`로 제한(Actuator 예외 가로채기 차단) · `b5f4dae` `SecurityConfig` `permitAll`에 `/actuator/**` 와일드카드 통합(prometheus 403 해소) · `797e479` 웹소켓 채팅 브로드캐스트 `createdAt` 명시 주입 · `7e730bd` `ChatMessageDto` 시간 필드 `ZonedDateTime → OffsetDateTime (UTC ISO-8601 Z)` 고정 · `79c4b4b` `/api/user/info` 응답에 `profileImageUrl` 병행 제공(프론트 키 호환성 보정) | 백엔드 |
 | 2026-04-16 | PortOne 본인인증 기반 비밀번호 변경/회원탈퇴, 2주 소프트 삭제 보류, 탈퇴 계정 복구(임시 비밀번호 발급 + 강제 변경), 보안 검증 토큰(5분 만료, sessionStorage), 다이렉트 URL 접근 차단 | 백엔드, 프론트엔드 |
 | 2026-04-16 | 비밀번호 변경 페이지 분리 (/change-password), FloatingAiChat FAQ 초기 닫힘 상태, AI 분석 입력란 통합 | 프론트엔드 |
 | 2026-04-16 | OAuth 로그인 role/userId 전달 일관화 (`issueTokens`로 일원화, 중복 `put` 제거, 소셜 로그인 URL fragment에 userId 추가), 관리자 회원 탭 검색·권한·상태 필터·컬럼 정렬·페이지네이션 추가, 포트폴리오 탭 차트 강화(손익 내림차순 정렬·최고수익/최대손실 하이라이트·투자금 vs 평가금 비교 차트·보유 종목 정렬 옵션), P0-P3 보안/리팩토링(@AuthenticationPrincipal, UserLoginRequest/UserSignupRequest DTO 분리) 통합 | 백엔드, 프론트엔드 |
