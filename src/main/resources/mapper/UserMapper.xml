@@ -163,4 +163,21 @@
         SET FORCE_PW_CHANGE = #{forcePwChange}
         WHERE USER_ID = #{userId}
     </update>
+
+    <select id="findActiveMemberByIdentity"
+            resultType="com.stock.dashboard.dto.UserIdentityResultDto">
+        SELECT
+            U.USER_ID AS userId,
+            U.EMAIL   AS email,
+            (SELECT S.PROVIDER
+               FROM USER_SOCIAL S
+              WHERE S.USER_ID = U.USER_ID
+              ORDER BY S.CREATED_AT DESC
+              LIMIT 1) AS provider
+        FROM USERS U
+        WHERE U.NAME = #{name}
+          AND REPLACE(U.PHONE, '-', '') = #{phoneNormalized}
+          AND U.DELETED_AT IS NULL
+        LIMIT 1
+    </select>
 </mapper>

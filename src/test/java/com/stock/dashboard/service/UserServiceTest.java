@@ -32,6 +32,7 @@ import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dao.UserSocialDao;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.dto.UserIdentityResultDto;
 import com.stock.dashboard.dto.UserLoginRequest;
 import com.stock.dashboard.util.AesEncryptor;
 
@@ -341,6 +342,105 @@ class UserServiceTest {
             verify(userDao).restoreUser(1);
             verify(userDao).updateForcePwChange(1, "Y");
             verify(emailService, times(1)).sendTempPasswordEmail(eq("me@test.com"), anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyCertification()")
+    class VerifyCertificationTest {
+
+        private Map<String, String> certResult() {
+            return Map.of(
+                "name",  "홍길동",
+                "phone", "010-1234-5678",
+                "birth", "1990-01-01"
+            );
+        }
+
+        private UserIdentityResultDto identity(String email, String provider) {
+            UserIdentityResultDto dto = new UserIdentityResultDto();
+            dto.setUserId(7L);
+            dto.setEmail(email);
+            dto.setProvider(provider);
+            return dto;
+        }
+
+        @Test
+        @DisplayName("이메일 가입 활성 회원 → existingMember=true, provider=EMAIL, maskedEmail 마스킹")
+        void verify_existingEmailMember() throws Exception {
+            when(portoneService.getCertification("imp_1")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity("홍길동", "01012345678"))
+                    .thenReturn(identity("hong.gildong@naver.com", null));
+
+            Map<String, Object> res = userService.verifyCertification("imp_1");
+
+            assertThat(res.get("existingMember")).isEqualTo(true);
+            assertThat(res.get("existingProvider")).isEqualTo("EMAIL");
+            assertThat(res.get("existingMaskedEmail")).isEqualTo("ho***@naver.com");
+        }
+
+        @Test
+        @DisplayName("카카오 자동생성 이메일 회원 → provider=KAKAO, maskedEmail=null")
+        void verify_existingKakaoMember() throws Exception {
+            when(portoneService.getCertification("imp_2")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity("홍길동", "01012345678"))
+                    .thenReturn(identity("kakao_98765@kakao.com", "KAKAO"));
+
+            Map<String, Object> res = userService.verifyCertification("imp_2");
+
+            assertThat(res.get("existingMember")).isEqualTo(true);
+            assertThat(res.get("existingProvider")).isEqualTo("KAKAO");
+            assertThat(res.get("existingMaskedEmail")).isNull();
+        }
+
+        @Test
+        @DisplayName("카카오 후 이메일 추가 연동: 가장 최근 매핑(KAKAO) + 일반 이메일이면 마스킹")
+        void verify_kakaoThenEmailLink() throws Exception {
+            when(portoneService.getCertification("imp_3")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity("홍길동", "01012345678"))
+                    .thenReturn(identity("hong@naver.com", "KAKAO"));
+
+            Map<String, Object> res = userService.verifyCertification("imp_3");
+
+            assertThat(res.get("existingProvider")).isEqualTo("KAKAO");
+            assertThat(res.get("existingMaskedEmail")).isEqualTo("ho***@naver.com");
+        }
+
+        @Test
+        @DisplayName("신규 미가입 → existingMember=false, 나머지 null")
+        void verify_newUser() throws Exception {
+            when(portoneService.getCertification("imp_4")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity(anyString(), anyString())).thenReturn(null);
+
+            Map<String, Object> res = userService.verifyCertification("imp_4");
+
+            assertThat(res.get("existingMember")).isEqualTo(false);
+            assertThat(res.get("existingProvider")).isNull();
+            assertThat(res.get("existingMaskedEmail")).isNull();
+        }
+
+        @Test
+        @DisplayName("phone 하이픈 제거 후 정규화된 값으로 DAO 호출")
+        void verify_phoneNormalization() throws Exception {
+            when(portoneService.getCertification("imp_5")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity(anyString(), anyString())).thenReturn(null);
+
+            userService.verifyCertification("imp_5");
+
+            verify(userDao).findActiveMemberByIdentity("홍길동", "01012345678");
+        }
+
+        @Test
+        @DisplayName("기존 응답 필드(name/phone/birth) 보존")
+        void verify_basicFieldsPreserved() throws Exception {
+            when(portoneService.getCertification("imp_6")).thenReturn(certResult());
+            when(userDao.findActiveMemberByIdentity(anyString(), anyString())).thenReturn(null);
+
+            Map<String, Object> res = userService.verifyCertification("imp_6");
+
+            assertThat(res.get("name")).isEqualTo("홍길동");
+            assertThat(res.get("phone")).isEqualTo("010-1234-5678");
+            assertThat(res.get("birth")).isEqualTo("1990-01-01");
         }
     }
 

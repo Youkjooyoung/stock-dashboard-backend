@@ -39,7 +39,7 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/certify")
-    public ResponseEntity<Map<String, String>> certify(@RequestBody Map<String, String> body) throws Exception {
+    public ResponseEntity<Map<String, Object>> certify(@RequestBody Map<String, String> body) throws Exception {
         return ResponseEntity.ok(userService.verifyCertification(body.get("impUid")));
     }
 

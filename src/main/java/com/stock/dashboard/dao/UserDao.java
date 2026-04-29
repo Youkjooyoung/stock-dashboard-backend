@@ -5,10 +5,15 @@ import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.dto.UserIdentityResultDto;
 
 @Mapper
 public interface UserDao {
 	int checkEmailExists(String email);
+
+	UserIdentityResultDto findActiveMemberByIdentity(
+		@org.apache.ibatis.annotations.Param("name") String name,
+		@org.apache.ibatis.annotations.Param("phoneNormalized") String phoneNormalized);
 
 	int checkNicknameExists(String nickname);
 
