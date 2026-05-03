@@ -2,8 +2,7 @@ target/
 .git/
 .idea/
 .vscode/
-.claude/
 *.iml
 HELP.md
 README.md
-CLAUDE.md
+AGENTS.md

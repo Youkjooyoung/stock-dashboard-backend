@@ -23,7 +23,7 @@ public class AiAnalysisController {
     public ResponseEntity<Map<String, String>> analyze(@RequestBody Map<String, String> body) throws Exception {
         String prompt = body.get("prompt");
         if (prompt == null || prompt.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "prompt가 필요합니다."));
+            return ResponseEntity.badRequest().body(Map.of("error", "prompt is required."));
         }
         return ResponseEntity.ok(Map.of("analysis", aiAnalysisService.analyze(prompt)));
     }
