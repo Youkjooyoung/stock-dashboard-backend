@@ -24,6 +24,7 @@
 - Do not log tokens, API keys, passwords, OAuth secrets, identity verification data, or payment secrets.
 
 ## Deployment Notes
-- Production runs on AWS and is deployed manually from MobaXterm.
+- Production runs on AWS and is deployed through GitHub Actions after push to `main`.
+- After completing backend work, commit and push the changes, then verify the Backend Auto Deploy workflow result.
 - Before deployment, verify required environment variables are set on the server.
 - Rotate any credential that was previously committed or shared in plain text.
