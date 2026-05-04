@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 public class AiAnalysisService {
 
     private static final String OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
     private static final String SYSTEM_PROMPT = """
             You are an AI assistant for a Korean stock dashboard.
             Analyze the user's stock or portfolio data in Korean.
@@ -37,7 +40,9 @@ public class AiAnalysisService {
     private String model;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newHttpClient();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(CONNECT_TIMEOUT)
+            .build();
 
     public String analyze(String prompt) throws Exception {
         if (!StringUtils.hasText(apiKey)) {
@@ -52,6 +57,7 @@ public class AiAnalysisService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(OPENAI_RESPONSES_URL))
+                .timeout(REQUEST_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body), StandardCharsets.UTF_8))

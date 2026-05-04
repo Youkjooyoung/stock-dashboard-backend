@@ -33,36 +33,40 @@ public class PriceAlertService {
     }
 
     public void checkAlerts() {
-        List<PriceAlertDto> alerts = alertDao.selectActiveAlerts();
-        if (alerts.isEmpty()) return;
+        try {
+            List<PriceAlertDto> alerts = alertDao.selectActiveAlerts();
+            if (alerts.isEmpty()) return;
 
-        for (PriceAlertDto alert : alerts) {
-            try {
-                List<StockPriceDto> prices = stockDao.selectPriceByTicker(alert.getTicker());
-                if (prices.isEmpty()) continue;
+            for (PriceAlertDto alert : alerts) {
+                try {
+                    List<StockPriceDto> prices = stockDao.selectPriceByTicker(alert.getTicker());
+                    if (prices.isEmpty()) continue;
 
-                long currentPrice = prices.get(0).getClpr();
-                boolean triggered =
-                    ("ABOVE".equals(alert.getAlertType()) && currentPrice >= alert.getTargetPrice()) ||
-                    ("BELOW".equals(alert.getAlertType()) && currentPrice <= alert.getTargetPrice());
+                    long currentPrice = prices.get(0).getClpr();
+                    boolean triggered =
+                        ("ABOVE".equals(alert.getAlertType()) && currentPrice >= alert.getTargetPrice()) ||
+                        ("BELOW".equals(alert.getAlertType()) && currentPrice <= alert.getTargetPrice());
 
-                if (triggered) {
-                    alertDao.triggerAlert(alert.getAlertId());
-                    sendAlert("/topic/alert/" + alert.getUserId(), Map.of(
-                        "type",         "PRICE_ALERT",
-                        "ticker",       alert.getTicker(),
-                        "stockName",    alert.getStockName(),
-                        "targetPrice",  alert.getTargetPrice(),
-                        "currentPrice", currentPrice,
-                        "alertType",    alert.getAlertType()
-                    ));
-                    log.info("[목표가 도달] {} {} {}원 → {}원",
-                        alert.getStockName(), alert.getAlertType(),
-                        alert.getTargetPrice(), currentPrice);
+                    if (triggered) {
+                        alertDao.triggerAlert(alert.getAlertId());
+                        sendAlert("/topic/alert/" + alert.getUserId(), Map.of(
+                            "type",         "PRICE_ALERT",
+                            "ticker",       alert.getTicker(),
+                            "stockName",    alert.getStockName(),
+                            "targetPrice",  alert.getTargetPrice(),
+                            "currentPrice", currentPrice,
+                            "alertType",    alert.getAlertType()
+                        ));
+                        log.info("[price-alert] triggered stockName={}, type={}, targetPrice={}, currentPrice={}",
+                            alert.getStockName(), alert.getAlertType(),
+                            alert.getTargetPrice(), currentPrice);
+                    }
+                } catch (Exception e) {
+                    log.warn("[price-alert] failed to process alertId={}: {}", alert.getAlertId(), e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("[알림 체크 오류] {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("[price-alert] failed to load active alerts: {}", e.getMessage());
         }
     }
 
@@ -76,10 +80,10 @@ public class PriceAlertService {
                 double rate = ((double)(close - open) / open) * 100;
                 if (Math.abs(rate) < 10) continue;
 
-                String direction     = rate > 0 ? "급등" : "급락";
+                String direction     = rate > 0 ? "UP" : "DOWN";
                 String rateFormatted = String.format("%.2f", rate);
 
-                log.info("[급등락] {} {} {}%", stock.getItmsNm(), direction, rateFormatted);
+                log.info("[big-move] {} {} {}%", stock.getItmsNm(), direction, rateFormatted);
 
                 Map<String, Object> notification = Map.of(
                     "type",      "BIG_MOVE",
@@ -94,7 +98,7 @@ public class PriceAlertService {
                        .forEach(uid -> sendAlert("/topic/alert/" + uid, notification));
             }
         } catch (Exception e) {
-            log.warn("[급등락 알림 오류] {}", e.getMessage());
+            log.warn("[big-move] failed to check stocks: {}", e.getMessage());
         }
     }
 
