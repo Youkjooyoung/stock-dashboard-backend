@@ -30,6 +30,16 @@ The default local port is `8443`.
 ./mvnw test
 ```
 
+## Current Maintenance Status
+- Last updated: 2026-05-04
+- AI runtime: OpenAI Responses API, configurable through `OPENAI_API_KEY` and `OPENAI_MODEL`.
+- Backend scheduler hardening: price alert checks catch data-source failures before they can break the scheduled task thread.
+- AI request hardening: OpenAI calls use explicit connect and request timeouts.
+- Deployment flow: push to `main` triggers Backend Auto Deploy through GitHub Actions.
+- Verification before latest deployment:
+  - `./mvnw test`
+  - `./mvnw clean package -DskipTests`
+
 ## AI Analysis
 The `/api/ai/analyze` endpoint uses OpenAI Responses API.
 

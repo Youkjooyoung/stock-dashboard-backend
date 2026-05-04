@@ -28,3 +28,9 @@
 - After completing backend work, commit and push the changes, then verify the Backend Auto Deploy workflow result.
 - Before deployment, verify required environment variables are set on the server.
 - Rotate any credential that was previously committed or shared in plain text.
+
+## Latest Verified State
+- Date: 2026-05-04
+- OpenAI analysis service has explicit connect/request timeouts.
+- Price alert scheduler catches active-alert lookup failures and logs them as warnings.
+- Required final checks before handoff: `./mvnw test`, `./mvnw clean package -DskipTests`, GitHub Actions deploy success.
