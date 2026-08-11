@@ -85,6 +85,8 @@ jobs:
             target_war="$app_dir/target/dashboard-0.0.1-SNAPSHOT.war"
             incoming_war="$HOME/stock-dashboard-deploy/$DEPLOY_SHA/stock-dashboard.war"
             rollback_war="$app_dir/target/dashboard-0.0.1-SNAPSHOT.war.rollback"
+            ssl_dir="$app_dir/config"
+            ssl_file="$ssl_dir/stock-dashboard.p12"
 
             test -s "$incoming_war"
             mkdir -p "$app_dir/target"
@@ -92,6 +94,21 @@ jobs:
             if [ -s "$target_war" ]; then
               cp -a "$target_war" "$rollback_war"
             fi
+
+            # Migrate the legacy classpath keystore to a server-side secret file.
+            # The certificate must never be stored in GitHub or the build artifact.
+            if [ ! -s "$ssl_file" ]; then
+              mkdir -p "$ssl_dir"
+              unzip -p "$target_war" WEB-INF/classes/stock-dashboard.p12 > "${ssl_file}.next"
+              test -s "${ssl_file}.next"
+              chmod 600 "${ssl_file}.next"
+              mv -f "${ssl_file}.next" "$ssl_file"
+            fi
+
+            sudo mkdir -p /etc/systemd/system/stock-dashboard.service.d
+            printf '[Service]\nEnvironment="SSL_KEY_STORE=file:%s"\n' "$ssl_file" \
+              | sudo tee /etc/systemd/system/stock-dashboard.service.d/10-ssl-keystore.conf >/dev/null
+            sudo systemctl daemon-reload
 
             install -m 0644 "$incoming_war" "${target_war}.next"
             mv -f "${target_war}.next" "$target_war"
