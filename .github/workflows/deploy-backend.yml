@@ -106,10 +106,15 @@ jobs:
               mv -f "${ssl_file}.next" "$ssl_file"
             fi
 
-            sudo mkdir -p /etc/systemd/system/stock-dashboard.service.d
-            printf '[Service]\nEnvironment="SSL_KEY_STORE=file:%s"\n' "$ssl_file" \
-              | sudo tee /etc/systemd/system/stock-dashboard.service.d/10-ssl-keystore.conf >/dev/null
-            sudo systemctl daemon-reload
+            # Add the certificate only after the verified artifact reaches EC2,
+            # so neither GitHub nor the Actions artifact stores the private key.
+            python3 -c 'import sys, zipfile; archive = zipfile.ZipFile(sys.argv[1], "a", zipfile.ZIP_DEFLATED); archive.write(sys.argv[2], "WEB-INF/classes/stock-dashboard.p12"); archive.close()' \
+              "$incoming_war" "$ssl_file"
+
+            if sudo test -f /etc/systemd/system/stock-dashboard.service.d/10-ssl-keystore.conf; then
+              sudo rm -f /etc/systemd/system/stock-dashboard.service.d/10-ssl-keystore.conf
+              sudo systemctl daemon-reload
+            fi
 
             install -m 0644 "$incoming_war" "${target_war}.next"
             mv -f "${target_war}.next" "$target_war"
