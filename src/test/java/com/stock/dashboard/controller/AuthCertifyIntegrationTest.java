@@ -57,7 +57,7 @@ class AuthCertifyIntegrationTest {
     @DisplayName("case 1: 이메일 가입 활성 회원 → existingMember=true, provider=EMAIL, maskedEmail 마스킹")
     void case1_existingEmailMember() throws Exception {
         stubCert("imp_case1");
-        long userId = insertUser("hong.gildong@naver.com", CERT_NAME, CERT_PHONE_NORM, null);
+        insertUser("hong.gildong@naver.com", CERT_NAME, CERT_PHONE_NORM, null);
 
         mockMvc.perform(post("/api/auth/certify")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -69,7 +69,7 @@ class AuthCertifyIntegrationTest {
                 .andExpect(jsonPath("$.name").value(CERT_NAME))
                 .andExpect(jsonPath("$.phone").value(CERT_PHONE))
                 .andExpect(jsonPath("$.birth").value(CERT_BIRTH))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(String.valueOf(userId)))))
+                .andExpect(jsonPath("$.userId").doesNotExist())
                 .andExpect(content().string(Matchers.not(Matchers.containsString("hong.gildong@naver.com"))));
     }
 
