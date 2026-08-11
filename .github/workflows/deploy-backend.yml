@@ -99,7 +99,8 @@ jobs:
             # The certificate must never be stored in GitHub or the build artifact.
             if [ ! -s "$ssl_file" ]; then
               mkdir -p "$ssl_dir"
-              unzip -p "$target_war" WEB-INF/classes/stock-dashboard.p12 > "${ssl_file}.next"
+              python3 -c 'import sys, zipfile; archive = zipfile.ZipFile(sys.argv[1]); open(sys.argv[2], "wb").write(archive.read("WEB-INF/classes/stock-dashboard.p12"))' \
+                "$target_war" "${ssl_file}.next"
               test -s "${ssl_file}.next"
               chmod 600 "${ssl_file}.next"
               mv -f "${ssl_file}.next" "$ssl_file"
