@@ -4,12 +4,21 @@ on:
   pull_request:
     branches: [main, develop]
   push:
-    branches: [develop]
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
-    name: Build & Test (JDK 21)
+    name: Test & Package (JDK 21)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -19,13 +28,10 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'temurin'
+          distribution: temurin
           cache: maven
 
-      - name: Show Java version
-        run: java -version
-
-      - name: Run unit tests (excluding Testcontainers)
+      - name: Run unit tests
         run: ./mvnw -B test -Dtest='!*IntegrationTest'
 
       - name: Run Testcontainers integration tests
@@ -33,21 +39,31 @@ jobs:
           RUN_INTEGRATION_TESTS: 'true'
         run: ./mvnw -B test -Dtest='*IntegrationTest'
 
-      - name: Package (skip tests, already ran)
+      - name: Package application
         run: ./mvnw -B package -DskipTests
 
-      - name: Upload Surefire reports
+      - name: Prepare deployable WAR
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          war_path="$(find target -maxdepth 1 -type f -name '*.war' -print -quit)"
+          test -n "$war_path"
+          cp "$war_path" stock-dashboard.war
+          test -s stock-dashboard.war
+
+      - name: Upload deployable WAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-war-${{ github.sha }}
+          path: stock-dashboard.war
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
+          name: backend-test-reports-${{ github.sha }}
           path: target/surefire-reports/
+          if-no-files-found: ignore
           retention-days: 7
-
-      - name: Publish test summary
-        if: always()
-        uses: mikepenz/action-junit-report@v4
-        with:
-          report_paths: 'target/surefire-reports/TEST-*.xml'
-          require_tests: true
-          check_name: 'Backend Test Results'

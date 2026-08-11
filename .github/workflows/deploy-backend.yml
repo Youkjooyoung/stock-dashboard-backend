@@ -1,56 +1,143 @@
 name: Backend Auto Deploy
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_run:
+    workflows: [Backend CI]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
 
 concurrency:
-  group: deploy-backend
+  group: production-backend
   cancel-in-progress: false
 
 jobs:
   deploy:
     name: Deploy to EC2 (api.jyyouk.shop)
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        (github.event.workflow_run.event == 'push' ||
+         github.event.workflow_run.event == 'workflow_dispatch')
+      }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
 
     steps:
-      - name: SSH into EC2 and deploy
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Validate deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.EC2_BACKEND_HOST }}
+          DEPLOY_USER: ${{ secrets.EC2_BACKEND_USER }}
+          DEPLOY_KEY: ${{ secrets.EC2_SSH_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          : "${DEPLOY_HOST:?Missing EC2_BACKEND_HOST secret}"
+          : "${DEPLOY_USER:?Missing EC2_BACKEND_USER secret}"
+          : "${DEPLOY_KEY:?Missing EC2_SSH_KEY secret}"
+
+      - name: Download verified WAR
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-war-${{ github.event.workflow_run.head_sha }}
+          path: deploy-artifact
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Validate downloaded WAR
+        run: test -s deploy-artifact/stock-dashboard.war
+
+      - name: Upload WAR to EC2 staging directory
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.EC2_BACKEND_HOST }}
           username: ${{ secrets.EC2_BACKEND_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          script_stop: true
+          source: deploy-artifact/stock-dashboard.war
+          target: ~/stock-dashboard-deploy/${{ env.DEPLOY_SHA }}
+          strip_components: 1
+          timeout: 30s
+          command_timeout: 3m
+
+      - name: Activate WAR and verify health
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
+        with:
+          host: ${{ secrets.EC2_BACKEND_HOST }}
+          username: ${{ secrets.EC2_BACKEND_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          command_timeout: 5m
+          envs: DEPLOY_SHA
           script: |
-            set -e
-            cd ~/stock-dashboard-backend
-            echo "[1/4] 최신 코드 pull"
-            git fetch origin main
-            git reset --hard origin/main
-            echo "[2/4] Maven 빌드"
-            ./mvnw -B clean package -DskipTests
-            echo "[3/4] 서비스 재시작"
+            set -Eeuo pipefail
+
+            app_dir="$HOME/stock-dashboard-backend"
+            target_war="$app_dir/target/dashboard-0.0.1-SNAPSHOT.war"
+            incoming_war="$HOME/stock-dashboard-deploy/$DEPLOY_SHA/stock-dashboard.war"
+            rollback_war="$app_dir/target/dashboard-0.0.1-SNAPSHOT.war.rollback"
+
+            test -s "$incoming_war"
+            mkdir -p "$app_dir/target"
+
+            if [ -s "$target_war" ]; then
+              cp -a "$target_war" "$rollback_war"
+            fi
+
+            install -m 0644 "$incoming_war" "${target_war}.next"
+            mv -f "${target_war}.next" "$target_war"
             sudo systemctl restart stock-dashboard
-            echo "[4/4] 헬스체크 (최대 60초, 3초 간격 재시도)"
-            for i in $(seq 1 20); do
-              if curl -fsS -m 3 https://api.jyyouk.shop/actuator/health 2>/dev/null | grep -q '"status":"UP"'; then
-                echo "OK (${i}회 시도, $((i*3))초 경과)"
+
+            health_ok() {
+              curl -kfsS --max-time 5 \
+                https://127.0.0.1:8443/actuator/health \
+                | grep -q '"status":"UP"'
+            }
+
+            for attempt in $(seq 1 30); do
+              if health_ok; then
+                echo "Backend health check passed on attempt $attempt."
+                rm -f "$incoming_war"
+                rmdir "$HOME/stock-dashboard-deploy/$DEPLOY_SHA" 2>/dev/null || true
                 exit 0
               fi
-              sleep 3
+              sleep 2
             done
-            echo "헬스체크 60초 타임아웃 — 서비스 상태 수동 확인 필요"
-            sudo systemctl status stock-dashboard --no-pager | tail -20 || true
+
+            echo "Backend health check failed; attempting rollback."
+            sudo systemctl status stock-dashboard --no-pager || true
+            sudo journalctl -u stock-dashboard -n 80 --no-pager || true
+
+            if [ -s "$rollback_war" ]; then
+              install -m 0644 "$rollback_war" "${target_war}.next"
+              mv -f "${target_war}.next" "$target_war"
+              sudo systemctl restart stock-dashboard
+
+              for attempt in $(seq 1 30); do
+                if health_ok; then
+                  echo "Rollback completed successfully."
+                  exit 1
+                fi
+                sleep 2
+              done
+            fi
+
+            echo "Rollback failed or no rollback artifact was available."
             exit 1
 
-      - name: Notify success
-        if: success()
-        run: echo "✅ 백엔드 운영 배포 완료 — $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-
-      - name: Notify failure
-        if: failure()
+      - name: Verify public backend endpoint
+        shell: bash
         run: |
-          echo "❌ 백엔드 운영 배포 실패 — SSH 로그/서비스 상태 확인 필요"
-          exit 1
+          set -Eeuo pipefail
+          response="$(curl -fsS --max-time 15 https://api.jyyouk.shop/actuator/health)"
+          grep -q '"status":"UP"' <<< "$response"
+          echo "Public backend health check passed."
