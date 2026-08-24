@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -34,6 +35,7 @@ class ActuatorEndpointsTest {
 	}
 
 	@Test
+	@WithMockUser(roles = "ADMIN")
 	@DisplayName("GET /actuator/prometheus → 200 & Prometheus 텍스트 포맷 + application 태그")
 	void prometheusEndpointExposed() throws Exception {
 		mockMvc.perform(get("/actuator/prometheus"))
@@ -43,6 +45,7 @@ class ActuatorEndpointsTest {
 	}
 
 	@Test
+	@WithMockUser(roles = "ADMIN")
 	@DisplayName("GET /actuator/prometheus 응답에 HTTP 요청 카운터 메트릭 존재")
 	void httpServerRequestsMetricExposed() throws Exception {
 		mockMvc.perform(get("/actuator/health"));

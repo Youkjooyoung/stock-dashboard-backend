@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -66,15 +67,24 @@ public class SecurityConfig {
                     "/api/auth/check-deleted",
                     "/api/auth/kakao/**",
                     "/api/auth/google/**",
-                    "/api/stock/prices",
-                    "/api/stock/prices/**",
-                    "/api/stock/items",
                     "/api/news/**",
                     "/ws/**",
-                    "/actuator/**"
+                    "/actuator/health",
+                    "/actuator/health/**",
+                    "/actuator/info"
+                ).permitAll()
+                .requestMatchers(HttpMethod.GET,
+                    "/api/stock/prices",
+                    "/api/stock/prices/*",
+                    "/api/stock/prices/*/range",
+                    "/api/stock/items"
                 ).permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/stock/collect/**").hasRole("ADMIN")
+                .requestMatchers(
+                    "/api/stock/collect/**",
+                    "/api/stock/prices/*/collect",
+                    "/actuator/**"
+                ).hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

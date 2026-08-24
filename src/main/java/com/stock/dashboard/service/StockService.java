@@ -208,15 +208,22 @@ public class StockService {
 	}
 
 	private String sendWithRetry(URI uri) throws Exception {
-		Exception last = new RuntimeException("API 호출 실패: " + uri);
+		Exception last = new RuntimeException("외부 주식 API 호출에 실패했습니다.");
 		for (int attempt = 1; attempt <= MAX_RETRY; attempt++) {
 			try {
-				return HTTP_CLIENT
-						.send(HttpRequest.newBuilder().uri(uri).GET().build(), HttpResponse.BodyHandlers.ofString())
-						.body();
+				HttpRequest request = HttpRequest.newBuilder()
+						.uri(uri)
+						.timeout(Duration.ofSeconds(20))
+						.GET()
+						.build();
+				HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+				if (response.statusCode() >= 200 && response.statusCode() < 300) {
+					return response.body();
+				}
+				throw new IllegalStateException("외부 주식 API가 HTTP " + response.statusCode() + " 응답을 반환했습니다.");
 			} catch (Exception e) {
 				last = e;
-				log.warn("[API] 요청 실패 (시도 {}/{}): {}", attempt, MAX_RETRY, e.getMessage());
+				log.warn("[API] 요청 실패 (시도 {}/{}): {}", attempt, MAX_RETRY, e.getClass().getSimpleName());
 				if (attempt < MAX_RETRY) Thread.sleep(RETRY_DELAY * attempt);
 			}
 		}
@@ -239,7 +246,7 @@ public class StockService {
 					.queryParam("endBasDt", endDate)
 					.build(true).toUri();
 
-			log.debug("[히스토리] API 호출 page {}: {}", pageNo, uri);
+			log.debug("[히스토리] API 호출 ticker={}, page={}, range={}~{}", ticker, pageNo, startDate, endDate);
 
 			JsonNode body = mapper.readTree(sendWithRetry(uri)).path("response").path("body");
 			JsonNode items = body.path("items").path("item");
@@ -269,7 +276,7 @@ public class StockService {
 					.queryParam("numOfRows", 1000).queryParam("pageNo", pageNo).queryParam("resultType", "json")
 					.queryParam("basDt", basDt).queryParam("mrktCls", market).build(true).toUri();
 
-			log.debug("[{}] API 호출 page {}: {}", market, pageNo, uri);
+			log.debug("[시세] API 호출 market={}, page={}, date={}", market, pageNo, basDt);
 
 			JsonNode body = mapper.readTree(sendWithRetry(uri)).path("response").path("body");
 			JsonNode items = body.path("items").path("item");
