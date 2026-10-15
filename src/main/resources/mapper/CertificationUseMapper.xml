@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.stock.dashboard.dao.CertificationUseDao">
+
+    <insert id="insertUse">
+        INSERT INTO CERTIFICATION_USE (IMP_UID, USER_EMAIL, PURPOSE, USED_AT)
+        VALUES (#{impUid}, #{email}, #{purpose}, NOW())
+    </insert>
+
+</mapper>

@@ -27,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.stock.dashboard.InputValidator;
 import com.stock.dashboard.JwtUtil;
+import com.stock.dashboard.dao.CertificationUseDao;
 import com.stock.dashboard.dao.RefreshTokenDao;
 import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
@@ -39,6 +40,7 @@ import com.stock.dashboard.dto.UserLoginRequest;
 @DisplayName("UserService 단위 테스트")
 class UserServiceTest {
 
+    @Mock private CertificationUseDao certificationUseDao;
     @Mock private EmailService    emailService;
     @Mock private InputValidator  validator;
     @Mock private JwtUtil         jwtUtil;
@@ -585,6 +587,112 @@ class UserServiceTest {
             assertThatThrownBy(() -> userService.getWatchlist("gone@test.com"))
                     .isInstanceOf(com.stock.dashboard.exception.BusinessException.class)
                     .hasMessageContaining("다시 로그인");
+        }
+    }
+
+    @Nested
+    @DisplayName("[보안] 로그인 잠금 자동 해제·본인인증 1회 사용·소셜 본인정보 등록")
+    class LockAndIdentityTest {
+
+        private Map<String, String> cert(String name, String phone) {
+            return Map.of("name", name, "phone", phone, "birth", "1990-01-01");
+        }
+
+        private UserLoginRequest loginReq(String email, String pw) {
+            UserLoginRequest req = new UserLoginRequest();
+            req.setEmail(email);
+            req.setPassword(pw);
+            return req;
+        }
+
+        @Test
+        @DisplayName("잠금 시간이 지나면 자동으로 풀리고 로그인된다")
+        void lockExpired_autoUnlocks() {
+            UserDto user = activeUser("me@test.com", "P@ssw0rd!");
+            user.setAccountLocked("Y");
+            user.setLoginFailCnt(5);
+            user.setLockedUntil(new Date(System.currentTimeMillis() - 1000));
+            when(userDao.findByEmail("me@test.com")).thenReturn(user);
+            when(jwtUtil.generateAccessToken(anyString(), anyString())).thenReturn("a");
+            when(jwtUtil.generateRefreshToken(anyString())).thenReturn("r");
+            when(jwtUtil.getRefreshExpiredAt()).thenReturn(new Date());
+
+            Map<String, String> tokens = userService.login(loginReq("me@test.com", "P@ssw0rd!"));
+
+            assertThat(tokens).containsEntry("accessToken", "a");
+            verify(userDao, times(2)).resetLoginFail("me@test.com"); // 잠금 해제 1번 + 로그인 성공 1번
+        }
+
+        @Test
+        @DisplayName("잠금 시간 안이면 올바른 비밀번호라도 15분 제한 안내")
+        void lockActive_rejects() {
+            UserDto user = activeUser("me@test.com", "P@ssw0rd!");
+            user.setAccountLocked("Y");
+            user.setLockedUntil(new Date(System.currentTimeMillis() + 60_000));
+            when(userDao.findByEmail("me@test.com")).thenReturn(user);
+
+            assertThatThrownBy(() -> userService.login(loginReq("me@test.com", "P@ssw0rd!")))
+                    .hasMessageContaining("15분간");
+            verify(userDao, never()).resetLoginFail(anyString());
+        }
+
+        @Test
+        @DisplayName("5번째로 틀리면 잠금 안내(남은 시도 0회라고 하지 않는다)")
+        void fifthFailure_locks() {
+            UserDto user = activeUser("me@test.com", "P@ssw0rd!");
+            user.setLoginFailCnt(4);
+            when(userDao.findByEmail("me@test.com")).thenReturn(user);
+
+            assertThatThrownBy(() -> userService.login(loginReq("me@test.com", "wrong")))
+                    .hasMessageContaining("15분간");
+            verify(userDao).updateLoginFail("me@test.com");
+        }
+
+        @Test
+        @DisplayName("이미 사용한 본인인증(imp_uid)으로는 verifyToken 을 받을 수 없다")
+        void verifyIdentity_rejectsReusedCertification() throws Exception {
+            when(userDao.findByEmail("me@test.com")).thenReturn(activeUser("me@test.com", "P@ssw0rd!"));
+            when(portoneService.getCertification("imp_1")).thenReturn(cert("홍길동", "01012345678"));
+            when(certificationUseDao.insertUse("imp_1", "me@test.com", "VERIFY"))
+                    .thenThrow(new org.springframework.dao.DuplicateKeyException("dup"));
+
+            assertThatThrownBy(() -> userService.verifyIdentityForAction("me@test.com", "imp_1"))
+                    .hasMessageContaining("이미 사용된 본인인증");
+            verify(jwtUtil, never()).generateVerifyToken(anyString());
+        }
+
+        @Test
+        @DisplayName("소셜 가입자는 첫 본인인증 결과가 회원 정보로 등록된다")
+        void verifyIdentity_socialUserBindsIdentity() throws Exception {
+            UserDto social = activeUser("kakao_1@kakao.com", "x");
+            social.setName(null);
+            social.setPhone(null);
+            when(userDao.findByEmail("kakao_1@kakao.com")).thenReturn(social);
+            when(portoneService.getCertification("imp_2")).thenReturn(cert("홍길동", "010-1234-5678"));
+            when(jwtUtil.generateVerifyToken("kakao_1@kakao.com")).thenReturn("vt");
+
+            assertThat(userService.verifyIdentityForAction("kakao_1@kakao.com", "imp_2"))
+                    .containsEntry("verifyToken", "vt");
+            verify(userDao).updateIdentity(1, "홍길동", "01012345678");
+            verify(certificationUseDao).insertUse("imp_2", "kakao_1@kakao.com", "VERIFY");
+        }
+
+        @Test
+        @DisplayName("다른 회원의 본인인증 정보로는 소셜 가입자 정보를 등록할 수 없다")
+        void verifyIdentity_socialUserRejectsOthersIdentity() throws Exception {
+            UserDto social = activeUser("kakao_1@kakao.com", "x");
+            social.setName(null);
+            social.setPhone(null);
+            when(userDao.findByEmail("kakao_1@kakao.com")).thenReturn(social);
+            when(portoneService.getCertification("imp_3")).thenReturn(cert("홍길동", "01012345678"));
+            UserIdentityResultDto other = new UserIdentityResultDto();
+            other.setUserId(99L);
+            other.setEmail("other@test.com");
+            when(userDao.findActiveMemberByIdentity("홍길동", "01012345678")).thenReturn(other);
+
+            assertThatThrownBy(() -> userService.verifyIdentityForAction("kakao_1@kakao.com", "imp_3"))
+                    .hasMessageContaining("다른 계정");
+            verify(userDao, never()).updateIdentity(anyInt(), anyString(), anyString());
         }
     }
 }

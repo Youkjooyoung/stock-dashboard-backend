@@ -25,7 +25,7 @@
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
                ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
-               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, LOCKED_UNTIL, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
         FROM USERS
         WHERE EMAIL = #{email} AND DELETED_AT IS NULL
@@ -66,7 +66,7 @@
 
     <update id="resetLoginFail" parameterType="String">
         UPDATE USERS
-        SET LOGIN_FAIL_CNT = 0, ACCOUNT_LOCKED = 'N'
+        SET LOGIN_FAIL_CNT = 0, ACCOUNT_LOCKED = 'N', LOCKED_UNTIL = NULL
 	WHERE EMAIL = #{_parameter}
     </update>
 
@@ -110,8 +110,11 @@
 
     <update id="updateLoginFail" parameterType="String">
         UPDATE USERS
-        SET LOGIN_FAIL_CNT = LOGIN_FAIL_CNT + 1,
-            ACCOUNT_LOCKED = CASE WHEN LOGIN_FAIL_CNT + 1 >= 5 THEN 'Y' ELSE 'N' END
+        <!-- MySQL 은 SET 을 왼쪽부터 처리하고 뒤 식은 바뀐 값을 본다.
+             LOGIN_FAIL_CNT 를 맨 마지막에 올려야 5번째 실패에서 잠긴다(예전에는 4번째에 잠겼다). -->
+        SET ACCOUNT_LOCKED = CASE WHEN LOGIN_FAIL_CNT + 1 >= 5 THEN 'Y' ELSE ACCOUNT_LOCKED END,
+            LOCKED_UNTIL   = CASE WHEN LOGIN_FAIL_CNT + 1 >= 5 THEN DATE_ADD(NOW(), INTERVAL 15 MINUTE) ELSE LOCKED_UNTIL END,
+            LOGIN_FAIL_CNT = LOGIN_FAIL_CNT + 1
 	WHERE EMAIL = #{_parameter}
     </update>
 
@@ -126,7 +129,7 @@
     <select id="findById" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
-               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, LOCKED_UNTIL, CREATED_AT, ROLE,
                DELETED_AT, FORCE_PW_CHANGE
         FROM USERS
         WHERE USER_ID = #{userId} AND DELETED_AT IS NULL
@@ -144,7 +147,7 @@
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
                ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
-               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, LOCKED_UNTIL, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
         FROM USERS
         WHERE EMAIL = #{email}
@@ -168,6 +171,12 @@
         UPDATE USERS
         SET FORCE_PW_CHANGE = #{forcePwChange}
         WHERE USER_ID = #{userId}
+    </update>
+
+    <update id="updateIdentity">
+        UPDATE USERS
+        SET NAME = #{name}, PHONE = #{phone}
+        WHERE USER_ID = #{userId} AND DELETED_AT IS NULL
     </update>
 
     <select id="findActiveMemberByIdentity"

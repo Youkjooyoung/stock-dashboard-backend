@@ -42,11 +42,12 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 - Every security fix ships with a regression test.
 - Do not collect resident registration numbers (Personal Information Protection Act, Article 24-2). Identity comes from the PortOne certification result only.
 
-## Known Open Items (2026-10-15)
-- Login lockout can be triggered by anyone who knows an email, and auth endpoints have no rate limiting. The API host runs nginx 1.24 (Let's Encrypt TLS, 80 -> 443 redirect) in front of Spring on 8443, so Spring sees 127.0.0.1 as the client unless nginx forwards `X-Forwarded-For`. Prefer nginx `limit_req` for auth endpoints and a time-based unlock column.
-- Resident registration numbers are no longer collected. Apply `sql/V20261015_drop_resident_no.sql` after deploying this version, then delete older DB backups/snapshots that still contain the column and remove `AES_SECRET_KEY` from the server.
-- Social users without a registered name/phone pass identity verification with any completed certification.
-- `sql/V20261015_unique_social_provider_email.sql` must be applied manually after checking for duplicates.
+## Operations State (2026-10-15)
+- The API host runs nginx 1.24 (Let's Encrypt TLS, 80 -> 443) in front of Spring on `localhost:8443`; nginx forwards `X-Real-IP` and `X-Forwarded-For`. Auth endpoints are rate limited in nginx (`/etc/nginx/conf.d/ratelimit.conf`, zone `auth_limit`).
+- Applied manually in production: `V20261015_unique_social_provider_email.sql`, `V20261015_drop_resident_no.sql`.
+- Login lockout is time based (`USERS.LOCKED_UNTIL`, 15 minutes). Accounts locked without `LOCKED_UNTIL` still need an admin unlock.
+- PortOne certifications are single use (`CERTIFICATION_USE`). Social users get their certified name/phone registered on first identity verification.
+- Schema changes are applied by hand from `sql/`; check each script's header for whether it runs before or after deployment. `V20261016_lock_until_and_certification_use.sql` must run **before** deploying the version that uses it.
 
 ## Deployment Notes
 - Production runs on AWS and is deployed through GitHub Actions after push to `main`.
