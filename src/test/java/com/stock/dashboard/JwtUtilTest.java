@@ -45,7 +45,7 @@ class JwtUtilTest {
     }
 
     @Test
-    @DisplayName("Verify 토큰은 Access 키로 서명되며 validateVerifyToken이 통과한다")
+    @DisplayName("Verify 토큰은 validateVerifyToken이 통과한다")
     void verifyToken_roundtrip() {
         String token = jwtUtil.generateVerifyToken("user@test.com");
 
@@ -107,5 +107,35 @@ class JwtUtilTest {
         assertThat(jwtUtil.validateAccessToken(token)).isFalse();
         // 필드 참조만으로도 재접근 가능한지 확인 (테스트 용도)
         ReflectionTestUtils.getField(jwtUtil, "accessKey");
+    }
+
+    @Test
+    @DisplayName("[보안] Access 토큰은 본인인증(verify) 토큰으로 쓸 수 없다")
+    void verifyValidation_rejectsAccessToken() {
+        String accessToken = jwtUtil.generateAccessToken("user@test.com", "USER");
+
+        assertThat(jwtUtil.validateVerifyToken(accessToken)).isFalse();
+    }
+
+    @Test
+    @DisplayName("[보안] 본인인증(verify) 토큰은 Access 토큰으로 쓸 수 없다")
+    void accessValidation_rejectsVerifyToken() {
+        String verifyToken = jwtUtil.generateVerifyToken("user@test.com");
+
+        assertThat(jwtUtil.validateAccessToken(verifyToken)).isFalse();
+        assertThat(jwtUtil.getRoleFromAccess(verifyToken)).isNull();
+    }
+
+    @Test
+    @DisplayName("[보안] 용도(typ) 표시가 없는 예전 형식 토큰은 Access 검증에서 거부된다")
+    void accessValidation_rejectsTokenWithoutType() {
+        String legacy = Jwts.builder()
+                .subject("user@test.com")
+                .claim("role", "ADMIN")
+                .expiration(new Date(System.currentTimeMillis() + 60_000))
+                .signWith(Keys.hmacShaKeyFor(ACCESS_SECRET.getBytes()))
+                .compact();
+
+        assertThat(jwtUtil.validateAccessToken(legacy)).isFalse();
     }
 }

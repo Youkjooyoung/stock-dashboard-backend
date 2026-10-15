@@ -10,12 +10,13 @@
     </insert>
 
     <select id="selectRecentMessages" resultType="com.stock.dashboard.dto.ChatMessageDto">
-        SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT, CREATED_AT FROM (
-            SELECT MSG_ID, TICKER, USER_EMAIL, NICKNAME, CONTENT,
-                   DATE_FORMAT(CREATED_AT, '%Y-%m-%dT%H:%i:%s.000Z') AS CREATED_AT,
-                   CREATED_AT AS RAW_CREATED_AT
-            FROM CHAT_MESSAGE
-            WHERE TICKER = #{ticker}
+        SELECT MSG_ID, TICKER, SENDER_ID, NICKNAME, CONTENT, CREATED_AT FROM (
+            SELECT C.MSG_ID, C.TICKER, U.USER_ID AS SENDER_ID, C.NICKNAME, C.CONTENT,
+                   DATE_FORMAT(C.CREATED_AT, '%Y-%m-%dT%H:%i:%s.000Z') AS CREATED_AT,
+                   C.CREATED_AT AS RAW_CREATED_AT
+            FROM CHAT_MESSAGE C
+            LEFT JOIN USERS U ON U.EMAIL = C.USER_EMAIL
+            WHERE C.TICKER = #{ticker}
             ORDER BY RAW_CREATED_AT DESC
             LIMIT #{limit}
         ) AS recent

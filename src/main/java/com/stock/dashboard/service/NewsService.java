@@ -14,13 +14,21 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.dashboard.config.HttpClientConfig;
 import com.stock.dashboard.dto.NewsDto;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class NewsService {
+
+    private static final int MAX_DISPLAY = 20;
+
+    private final HttpClient   httpClient;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Value("${naver.client-id}")     private String clientId;
     @Value("${naver.client-secret}") private String clientSecret;
@@ -28,18 +36,19 @@ public class NewsService {
 
     public List<NewsDto> getStockNews(String query, int display) throws Exception {
         String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        URI uri = URI.create(newsUrl + "?query=" + encoded + "&display=" + display + "&sort=date");
+        int safeDisplay = Math.max(1, Math.min(display, MAX_DISPLAY));
+        URI uri = URI.create(newsUrl + "?query=" + encoded + "&display=" + safeDisplay + "&sort=date");
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
+                .timeout(HttpClientConfig.REQUEST_TIMEOUT)
                 .header("X-Naver-Client-Id", clientId)
                 .header("X-Naver-Client-Secret", clientSecret)
                 .GET().build();
 
-        HttpResponse<String> response = HttpClient.newHttpClient()
-                .send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        JsonNode items = new ObjectMapper().readTree(response.body()).path("items");
+        JsonNode items = mapper.readTree(response.body()).path("items");
 
         List<NewsDto> list = new ArrayList<>();
         if (items.isArray()) {

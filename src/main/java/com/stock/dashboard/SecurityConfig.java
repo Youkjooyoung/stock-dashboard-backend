@@ -23,7 +23,8 @@ public class SecurityConfig {
         this.jwtAuthFilter = jwtAuthFilter;
     }
 
-    private static final List<String> ALLOWED_ORIGINS = List.of(
+    // WebSocketConfig 도 같은 목록을 쓴다.
+    static final List<String> ALLOWED_ORIGINS = List.of(
         "http://localhost:5173",
         "http://localhost:5174",
         "https://jyyouk.shop",
@@ -54,7 +55,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/login",
-                    "/api/auth/register",
                     "/api/auth/signup",
                     "/api/auth/refresh",
                     "/api/auth/check-email",

@@ -9,6 +9,7 @@ import com.stock.dashboard.dao.AdminDao;
 import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dto.AdminUserDto;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -46,8 +47,8 @@ public class AdminService {
 
     public void resendVerifyEmail(int userId) throws Exception {
         UserDto user = userDao.findById(userId);
-        if (user == null) throw new RuntimeException("존재하지 않는 회원입니다.");
-        if ("Y".equals(user.getEmailVerified())) throw new RuntimeException("이미 인증된 회원입니다.");
+        if (user == null) throw new BusinessException("존재하지 않는 회원입니다.");
+        if ("Y".equals(user.getEmailVerified())) throw new BusinessException("이미 인증된 회원입니다.");
         emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerifyToken());
     }
 

@@ -1,9 +1,11 @@
 package com.stock.dashboard.service;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -15,13 +17,16 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.dashboard.InputValidator;
 import com.stock.dashboard.JwtUtil;
+import com.stock.dashboard.config.HttpClientConfig;
 import com.stock.dashboard.dao.RefreshTokenDao;
 import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
@@ -33,6 +38,7 @@ import com.stock.dashboard.dto.UserIdentityResultDto;
 import com.stock.dashboard.dto.UserLoginRequest;
 import com.stock.dashboard.dto.UserSignupRequest;
 import com.stock.dashboard.dto.UserSocialDto;
+import com.stock.dashboard.exception.BusinessException;
 import com.stock.dashboard.util.AesEncryptor;
 
 import lombok.RequiredArgsConstructor;
@@ -53,6 +59,8 @@ public class UserService {
     private final UserDao               userDao;
     private final UserSocialDao         userSocialDao;
     private final S3Service             s3Service;
+    private final HttpClient            httpClient;
+    private final ObjectMapper          objectMapper = new ObjectMapper();
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${app.base.url}")          private String appBaseUrl;
@@ -63,6 +71,7 @@ public class UserService {
     @Value("${google.client-secret}")  private String googleClientSecret;
     @Value("${google.redirect-uri}")   private String googleRedirectUri;
 
+    @Transactional(rollbackFor = Exception.class)
     public void signup(UserSignupRequest req) throws Exception {
         validator.validateEmail(req.getEmail());
         validator.validatePassword(req.getPassword());
@@ -78,13 +87,17 @@ public class UserService {
 
         Map<String, String> certData = portoneService.getCertification(req.getImpUid());
         validateResidentNoByCert(req.getResidentNo(), certData.get("birth"));
+        // 이름·전화번호는 사용자가 보낸 값이 아니라 본인인증 결과와 같아야 한다.
+        if (!certData.get("name").equals(req.getName())
+                || !normalizePhone(certData.get("phone")).equals(normalizePhone(req.getPhone())))
+            throw new BusinessException("본인인증 정보와 입력한 이름 또는 휴대폰 번호가 다릅니다.");
 
         UserDto dto = new UserDto();
         dto.setEmail(req.getEmail());
         dto.setPassword(passwordEncoder.encode(req.getPassword()));
-        dto.setName(req.getName());
+        dto.setName(certData.get("name"));
         dto.setNickname(req.getNickname());
-        dto.setPhone(req.getPhone());
+        dto.setPhone(normalizePhone(certData.get("phone")));
         dto.setAddress(req.getAddress());
         dto.setAddressDetail(req.getAddressDetail());
         dto.setResidentNo(aesEncryptor.encrypt(req.getResidentNo()));
@@ -94,16 +107,6 @@ public class UserService {
         emailService.sendVerificationEmail(dto.getEmail(), dto.getEmailVerifyToken());
     }
 
-    public String register(UserDto dto) {
-        validator.validateEmail(dto.getEmail());
-        validator.validatePassword(dto.getPassword());
-        if (userDao.findByEmail(dto.getEmail()) != null)
-            throw new RuntimeException("이미 존재하는 이메일입니다.");
-        dto.setPassword(passwordEncoder.encode(dto.getPassword()));
-        userDao.insertUser(dto);
-        return "회원가입 완료";
-    }
-
     public Map<String, String> login(UserLoginRequest req) {
         if (!"admin".equals(req.getEmail())) {
             validator.validateEmail(req.getEmail());
@@ -111,17 +114,17 @@ public class UserService {
 
         UserDto user = userDao.findByEmail(req.getEmail());
         if (user == null)
-            throw new RuntimeException("이메일 또는 비밀번호가 틀렸습니다.");
+            throw new BusinessException("이메일 또는 비밀번호가 틀렸습니다.");
         if ("Y".equals(user.getAccountLocked()))
-            throw new RuntimeException("로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
+            throw new BusinessException("로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
         if (!"Y".equals(user.getEmailVerified()))
-            throw new RuntimeException("이메일 인증이 필요합니다.");
+            throw new BusinessException("이메일 인증이 필요합니다.");
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             userDao.updateLoginFail(req.getEmail());
             int remaining = 5 - (user.getLoginFailCnt() + 1);
-            if (remaining <= 0) throw new RuntimeException("로그인 시도 횟수 초과로 계정이 잠겼습니다.");
-            throw new RuntimeException("비밀번호가 틀렸습니다. 남은 시도: " + remaining + "회");
+            if (remaining <= 0) throw new BusinessException("로그인 시도 횟수 초과로 계정이 잠겼습니다.");
+            throw new BusinessException("비밀번호가 틀렸습니다. 남은 시도: " + remaining + "회");
         }
 
         userDao.resetLoginFail(req.getEmail());
@@ -133,36 +136,17 @@ public class UserService {
     }
 
     public Map<String, String> kakaoLogin(String code) throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        String tokenBody = String.format(
-            "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
-            kakaoClientId, kakaoClientSecret, kakaoRedirectUri, code
-        );
-        String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
-        JsonNode info = fetchUserInfo(client, "https://kapi.kakao.com/v2/user/me", kakaoToken);
-        String email    = info.path("kakao_account").path("email").asText();
-        String nickname = info.path("properties").path("nickname").asText();
-        if (email.isEmpty())    email    = "kakao_" + info.path("id").asText() + "@kakao.com";
+        JsonNode info   = fetchKakaoUser(code, kakaoRedirectUri);
+        String nickname = info.path("properties").path("nickname").asText("");
         if (nickname.isEmpty()) nickname = "카카오 사용자";
-        return handleSocialLogin("KAKAO", "KAKAO_", email, nickname);
+        return handleSocialLogin("KAKAO", "KAKAO_", kakaoEmail(info), nickname);
     }
 
     public Map<String, String> googleLogin(String code) throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        String tokenBody = String.format(
-            "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
-            code, googleClientId, googleClientSecret, googleRedirectUri
-        );
-        String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
-        JsonNode info = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
-        String email    = info.path("email").asText();
-        String nickname = info.path("name").asText();
-        if (email.isEmpty()) {
-            String id = info.path("id").asText();
-            email = "google_" + (id.isEmpty() ? System.currentTimeMillis() : id) + "@google.com";
-        }
+        JsonNode info   = fetchGoogleUser(code, googleRedirectUri);
+        String nickname = info.path("name").asText("");
         if (nickname.isEmpty()) nickname = "구글 사용자";
-        return handleSocialLogin("GOOGLE", "GOOGLE_", email, nickname);
+        return handleSocialLogin("GOOGLE", "GOOGLE_", googleEmail(info), nickname);
     }
 
     private Map<String, String> handleSocialLogin(String provider, String prefix, String email, String nickname) {
@@ -170,6 +154,7 @@ public class UserService {
         if (linked != null) {
             UserDto linkedUser = userDao.findById(linked.getUserId());
             if (linkedUser != null) {
+                ensureSocialLoginAllowed(linkedUser);
                 Map<String, String> tokens = issueTokens(linkedUser);
                 tokens.put("nickname", nickname);
                 return tokens;
@@ -177,64 +162,82 @@ public class UserService {
         }
         return processSocialLogin(email, nickname, prefix);
     }
-    public void linkGoogle(String token, String code) throws Exception {
-        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
-        HttpClient client = HttpClient.newHttpClient();
 
-        String tokenBody = String.format(
-            "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
-            code, googleClientId, googleClientSecret, appBaseUrl + "/oauth/link"
-        );
+    /** 로그인한 사용자(email)에게 소셜 계정을 연결한다. email 은 서버가 발급한 state 에서 꺼낸 값이다. */
+    public void linkSocial(String email, String provider, String code) throws Exception {
+        if (code == null || code.isBlank()) throw new BusinessException("소셜 인증 정보가 없습니다. 다시 시도해주세요.");
+        UserDto user = getUser(email);
+        String linkRedirectUri = appBaseUrl + "/oauth/link";
+        String providerEmail = switch (provider) {
+            case "GOOGLE" -> googleEmail(fetchGoogleUser(code, linkRedirectUri));
+            case "KAKAO"  -> kakaoEmail(fetchKakaoUser(code, linkRedirectUri));
+            default -> throw new BusinessException("지원하지 않는 소셜 서비스입니다.");
+        };
 
-        String googleToken = fetchAccessToken(client, "https://oauth2.googleapis.com/token", tokenBody);
-        JsonNode userJson  = fetchUserInfo(client, "https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
-
-        String email = userJson.path("email").asText();
-        if (email.isEmpty()) email = "google_" + userJson.path("id").asText() + "@google.com";
-
-        if (userSocialDao.checkSocialLink(user.getUserId(), "GOOGLE") > 0) {
+        if (userSocialDao.checkSocialLink(user.getUserId(), provider) > 0) {
             return;
+        }
+        UserSocialDto owner = userSocialDao.selectByProviderAndEmail(provider, providerEmail);
+        if (owner != null && owner.getUserId() != user.getUserId()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 다른 계정에 연동된 소셜 계정입니다.");
         }
 
         UserSocialDto dto = new UserSocialDto();
         dto.setUserId(user.getUserId());
-        dto.setProvider("GOOGLE");
-        dto.setProviderEmail(email);
+        dto.setProvider(provider);
+        dto.setProviderEmail(providerEmail);
         userSocialDao.insertSocial(dto);
     }
 
-    public void linkKakao(String token, String code) throws Exception {
-        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
-        HttpClient client = HttpClient.newHttpClient();
+    private JsonNode fetchKakaoUser(String code, String redirectUri) throws Exception {
+        String tokenBody = formBody(Map.of(
+            "grant_type", "authorization_code", "client_id", kakaoClientId,
+            "client_secret", kakaoClientSecret, "redirect_uri", redirectUri, "code", code));
+        String kakaoToken = fetchAccessToken("https://kauth.kakao.com/oauth/token", tokenBody);
+        return fetchUserInfo("https://kapi.kakao.com/v2/user/me", kakaoToken);
+    }
 
-        String tokenBody = String.format(
-            "grant_type=authorization_code&client_id=%s&client_secret=%s&redirect_uri=%s&code=%s",
-            kakaoClientId, kakaoClientSecret, appBaseUrl + "/oauth/link", code
-        );
+    private JsonNode fetchGoogleUser(String code, String redirectUri) throws Exception {
+        String tokenBody = formBody(Map.of(
+            "grant_type", "authorization_code", "client_id", googleClientId,
+            "client_secret", googleClientSecret, "redirect_uri", redirectUri, "code", code));
+        String googleToken = fetchAccessToken("https://oauth2.googleapis.com/token", tokenBody);
+        return fetchUserInfo("https://www.googleapis.com/oauth2/v2/userinfo", googleToken);
+    }
 
-        String kakaoToken = fetchAccessToken(client, "https://kauth.kakao.com/oauth/token", tokenBody);
-        JsonNode userJson = fetchUserInfo(client, "https://kapi.kakao.com/v2/user/me", kakaoToken);
+    /**
+     * 카카오가 "인증된 이메일"이라고 확인한 경우에만 그 이메일을 쓴다.
+     * 인증되지 않은 이메일을 믿으면, 남의 이메일을 적어 둔 카카오 계정으로 그 사람 계정에 로그인할 수 있다.
+     */
+    private String kakaoEmail(JsonNode info) {
+        String id = info.path("id").asText("");
+        if (id.isEmpty()) throw new BusinessException(HttpStatus.BAD_GATEWAY, "카카오 사용자 정보를 확인할 수 없습니다.");
+        JsonNode account = info.path("kakao_account");
+        String email = account.path("email").asText("");
+        boolean verified = account.path("is_email_verified").asBoolean(false)
+                && account.path("is_email_valid").asBoolean(true);
+        return verified && !email.isEmpty() ? email : "kakao_" + id + "@kakao.com";
+    }
 
-        String email = userJson.path("kakao_account").path("email").asText();
-        if (email.isEmpty()) email = "kakao_" + userJson.path("id").asText() + "@kakao.com";
+    private String googleEmail(JsonNode info) {
+        String id = info.path("id").asText("");
+        if (id.isEmpty()) throw new BusinessException(HttpStatus.BAD_GATEWAY, "구글 사용자 정보를 확인할 수 없습니다.");
+        String email = info.path("email").asText("");
+        boolean verified = info.path("verified_email").asBoolean(false);
+        return verified && !email.isEmpty() ? email : "google_" + id + "@google.com";
+    }
 
-        if (userSocialDao.checkSocialLink(user.getUserId(), "KAKAO") > 0) {
-            return;
-        }
-
-        UserSocialDto dto = new UserSocialDto();
-        dto.setUserId(user.getUserId());
-        dto.setProvider("KAKAO");
-        dto.setProviderEmail(email);
-        userSocialDao.insertSocial(dto);
+    private void ensureSocialLoginAllowed(UserDto user) {
+        if ("Y".equals(user.getAccountLocked()))
+            throw new BusinessException(HttpStatus.FORBIDDEN, "로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
     }
 
     public Map<String, String> refresh(String refreshToken) {
         if (!jwtUtil.validateRefreshToken(refreshToken))
-            throw new RuntimeException("유효하지 않은 Refresh Token입니다.");
+            throw new BusinessException("유효하지 않은 Refresh Token입니다.");
         RefreshTokenDto rtDto = refreshTokenDao.findByToken(refreshToken);
         if (rtDto == null)
-            throw new RuntimeException("만료되거나 존재하지 않는 Refresh Token입니다.");
+            throw new BusinessException("만료되거나 존재하지 않는 Refresh Token입니다.");
         String email = jwtUtil.getEmailFromRefresh(refreshToken);
         UserDto user = userDao.findByEmail(email);
         return Map.of("accessToken",
@@ -253,7 +256,7 @@ public class UserService {
 
     public void forgotPassword(String email) throws Exception {
         UserDto user = userDao.findByEmail(email);
-        if (user == null) throw new RuntimeException("존재하지 않는 이메일입니다.");
+        if (user == null) throw new BusinessException("존재하지 않는 이메일입니다.");
 
         String token = UUID.randomUUID().toString();
         Calendar cal = Calendar.getInstance();
@@ -265,13 +268,14 @@ public class UserService {
         emailService.sendPasswordResetEmail(email, token);
     }
 
+    @Transactional
     public void resetPassword(String token, String newPassword) {
         validator.validatePassword(newPassword);
 
         UserDto user = userDao.findByPasswordResetToken(token);
-        if (user == null) throw new RuntimeException("유효하지 않은 링크입니다.");
+        if (user == null) throw new BusinessException("유효하지 않은 링크입니다.");
         if (new Date().after(user.getPasswordResetExpiry()))
-            throw new RuntimeException("만료된 링크입니다. 다시 요청해 주세요.");
+            throw new BusinessException("만료된 링크입니다. 다시 요청해 주세요.");
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userDao.updatePassword(user);
@@ -355,24 +359,18 @@ public class UserService {
         return stockDao.selectLatestPricesByItemIds(itemIds);
     }
 
-    public void saveSocialLink(String email, UserSocialDto dto) {
-        dto.setUserId(getUser(email).getUserId());
-        dto.setProvider(dto.getProvider().toUpperCase());
-        userSocialDao.insertSocial(dto);
-    }
-
     public void changePassword(String email, String verifyToken, String newPassword) {
         if (verifyToken == null || verifyToken.isBlank()) {
-            throw new RuntimeException("본인인증이 필요합니다.");
+            throw new BusinessException("본인인증이 필요합니다.");
         }
         if (!jwtUtil.validateVerifyToken(verifyToken)) {
-            throw new RuntimeException("본인인증이 만료되었습니다. 다시 인증해주세요.");
+            throw new BusinessException("본인인증이 만료되었습니다. 다시 인증해주세요.");
         }
         validator.validatePassword(newPassword);
         UserDto user = getUser(email);
         String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
         if (!user.getEmail().equals(verifyEmail)) {
-            throw new RuntimeException("본인인증 정보가 일치하지 않습니다.");
+            throw new BusinessException("본인인증 정보가 일치하지 않습니다.");
         }
         user.setPassword(passwordEncoder.encode(newPassword));
         userDao.updatePassword(user);
@@ -383,8 +381,8 @@ public class UserService {
 
     public void resendVerifyEmail(String email) throws Exception {
         UserDto user = userDao.findByEmail(email);
-        if (user == null) throw new RuntimeException("존재하지 않는 이메일입니다.");
-        if ("Y".equals(user.getEmailVerified())) throw new RuntimeException("이미 인증된 이메일입니다.");
+        if (user == null) throw new BusinessException("존재하지 않는 이메일입니다.");
+        if ("Y".equals(user.getEmailVerified())) throw new BusinessException("이미 인증된 이메일입니다.");
         String token = UUID.randomUUID().toString();
         user.setEmailVerifyToken(token);
         userDao.updateEmailVerifyToken(user);
@@ -394,21 +392,24 @@ public class UserService {
     public void updateNickname(String email, String nickname) {
         validator.validateNickname(nickname);
         UserDto user = getUser(email);
+        if (!nickname.equals(user.getNickname()) && checkNicknameExists(nickname))
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 사용 중인 닉네임입니다.");
         user.setNickname(nickname);
         userDao.updateNickname(user);
     }
 
+    @Transactional
     public void deleteAccount(String email, String verifyToken, String deleteReason) {
         if (verifyToken == null || verifyToken.isBlank()) {
-            throw new RuntimeException("본인인증이 필요합니다.");
+            throw new BusinessException("본인인증이 필요합니다.");
         }
         if (!jwtUtil.validateVerifyToken(verifyToken)) {
-            throw new RuntimeException("본인인증이 만료되었습니다. 다시 인증해주세요.");
+            throw new BusinessException("본인인증이 만료되었습니다. 다시 인증해주세요.");
         }
         UserDto user = getUser(email);
         String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
         if (!user.getEmail().equals(verifyEmail)) {
-            throw new RuntimeException("본인인증 정보가 일치하지 않습니다.");
+            throw new BusinessException("본인인증 정보가 일치하지 않습니다.");
         }
         refreshTokenDao.deleteByUserId(user.getUserId());
         userDao.softDeleteUser(user.getUserId(), deleteReason != null ? deleteReason : "");
@@ -422,51 +423,51 @@ public class UserService {
         userSocialDao.deleteSocial(getUser(email).getUserId(), provider.toUpperCase());
     }
 
-    public Map<String, String> verifyIdentityForAction(String token, String impUid) {
-        UserDto user = getUser(jwtUtil.getEmailFromAccess(token));
-        if (user == null) throw new RuntimeException("사용자 정보를 찾을 수 없습니다.");
-        if (impUid == null || impUid.isBlank()) throw new RuntimeException("본인인증 정보가 없습니다.");
+    public Map<String, String> verifyIdentityForAction(String email, String impUid) {
+        UserDto user = getUser(email);
+        if (impUid == null || impUid.isBlank()) throw new BusinessException("본인인증 정보가 없습니다.");
 
         Map<String, String> certData;
         try {
             certData = portoneService.getCertification(impUid);
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("[본인인증] PortOne 인증 조회 실패: {}", e.getMessage(), e);
-            throw new RuntimeException("본인인증 정보 확인에 실패했습니다.");
+            throw new BusinessException("본인인증 정보 확인에 실패했습니다.");
         }
 
+        // PortoneService 가 "완료된 인증 + 이름·전화번호 있음"을 보장한다.
         String certName  = certData.get("name");
-        String certPhone = certData.get("phone");
+        String certPhone = normalizePhone(certData.get("phone"));
 
-        if (certName == null || certPhone == null) {
-            throw new RuntimeException("본인인증 정보를 가져올 수 없습니다.");
-        }
-
-        String userName  = user.getName() != null ? user.getName() : "";
-        String userPhone = user.getPhone() != null ? user.getPhone() : "";
-        String normalizedCertPhone = certPhone.replaceAll("-", "");
-        String normalizedUserPhone = userPhone.replaceAll("-", "");
-
-        if (!userName.equals(certName) || !normalizedUserPhone.equals(normalizedCertPhone)) {
-            throw new RuntimeException("본인인증 정보가 회원 정보와 일치하지 않습니다.");
+        // 이름·전화번호를 등록한 회원은 인증 결과와 반드시 같아야 한다.
+        // 소셜 가입자처럼 등록 정보가 없으면 완료된 본인인증만 확인한다(기존 동작 유지).
+        boolean hasIdentity = user.getName() != null && !user.getName().isBlank()
+                && user.getPhone() != null && !user.getPhone().isBlank();
+        if (hasIdentity && (!user.getName().equals(certName) || !normalizePhone(user.getPhone()).equals(certPhone))) {
+            throw new BusinessException("본인인증 정보가 회원 정보와 일치하지 않습니다.");
         }
 
         String verifyToken = jwtUtil.generateVerifyToken(user.getEmail());
         return Map.of("verifyToken", verifyToken);
     }
 
+    @Transactional
     public Map<String, String> recoverAccount(String email, String name, String phone) {
         UserDto deletedUser = userDao.findByEmailIncludeDeleted(email);
         if (deletedUser == null || deletedUser.getDeletedAt() == null) {
-            throw new RuntimeException("복구 가능한 계정이 없습니다.");
+            throw new BusinessException("복구 가능한 계정이 없습니다.");
         }
         long diffMs = System.currentTimeMillis() - deletedUser.getDeletedAt().getTime();
         long twoWeeksMs = 14L * 24 * 60 * 60 * 1000;
         if (diffMs > twoWeeksMs) {
-            throw new RuntimeException("복구 기간(2주)이 만료된 계정입니다.");
+            throw new BusinessException("복구 기간(2주)이 만료된 계정입니다.");
         }
-        if (!deletedUser.getName().equals(name) || !deletedUser.getPhone().equals(phone)) {
-            throw new RuntimeException("본인인증 정보가 탈퇴 계정 정보와 일치하지 않습니다.");
+        if (name == null || phone == null
+                || !name.equals(deletedUser.getName())
+                || !normalizePhone(phone).equals(normalizePhone(deletedUser.getPhone()))) {
+            throw new BusinessException("본인인증 정보가 탈퇴 계정 정보와 일치하지 않습니다.");
         }
         String tempPassword = generateTempPassword();
         deletedUser.setPassword(passwordEncoder.encode(tempPassword));
@@ -477,7 +478,7 @@ public class UserService {
             emailService.sendTempPasswordEmail(email, tempPassword);
         } catch (Exception e) {
             log.error("[복구] 임시 비밀번호 이메일 발송 실패: {}", e.getMessage(), e);
-            throw new RuntimeException("임시 비밀번호 이메일 발송에 실패했습니다.");
+            throw new BusinessException("임시 비밀번호 이메일 발송에 실패했습니다.");
         }
         return Map.of("message", "계정이 복구되었습니다. 이메일로 발송된 임시 비밀번호로 로그인해주세요.");
     }
@@ -509,28 +510,49 @@ public class UserService {
         return sb.toString();
     }
 
-    private String fetchAccessToken(HttpClient client, String url, String body) throws Exception {
+    private String fetchAccessToken(String url, String body) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .timeout(HttpClientConfig.REQUEST_TIMEOUT)
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .build();
-        HttpResponse<String> res = client.send(request, HttpResponse.BodyHandlers.ofString());
-        
-        JsonNode node = new ObjectMapper().readTree(res.body());
+        HttpResponse<String> res = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        JsonNode node = objectMapper.readTree(res.body());
         if (!node.has("access_token")) {
-            throw new RuntimeException("API 응답 에러: " + res.body());
+            log.warn("[소셜로그인] 토큰 교환 실패: url={}, status={}", url, res.statusCode());
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "소셜 로그인 서버 응답을 확인할 수 없습니다.");
         }
         return node.get("access_token").asText();
     }
 
-    private JsonNode fetchUserInfo(HttpClient client, String url, String accessToken) throws Exception {
+    private JsonNode fetchUserInfo(String url, String accessToken) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .timeout(HttpClientConfig.REQUEST_TIMEOUT)
                 .header("Authorization", "Bearer " + accessToken)
                 .GET().build();
-        HttpResponse<String> res = client.send(request, HttpResponse.BodyHandlers.ofString());
-        return new ObjectMapper().readTree(res.body());
+        HttpResponse<String> res = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (res.statusCode() != 200) {
+            log.warn("[소셜로그인] 사용자 정보 조회 실패: url={}, status={}", url, res.statusCode());
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "소셜 로그인 서버 응답을 확인할 수 없습니다.");
+        }
+        return objectMapper.readTree(res.body());
+    }
+
+    private static String formBody(Map<String, String> params) {
+        StringBuilder sb = new StringBuilder();
+        params.forEach((k, v) -> {
+            if (sb.length() > 0) sb.append('&');
+            sb.append(URLEncoder.encode(k, StandardCharsets.UTF_8)).append('=')
+              .append(URLEncoder.encode(v != null ? v : "", StandardCharsets.UTF_8));
+        });
+        return sb.toString();
+    }
+
+    private static String normalizePhone(String phone) {
+        return phone != null ? phone.replace("-", "") : "";
     }
 
     public long getUserId(String email) {
@@ -538,7 +560,9 @@ public class UserService {
     }
 
     private UserDto getUser(String email) {
-        return userDao.findByEmail(email);
+        UserDto user = email != null ? userDao.findByEmail(email) : null;
+        if (user == null) throw new BusinessException(HttpStatus.UNAUTHORIZED, "사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+        return user;
     }
 
     private Map<String, String> issueTokens(UserDto user) {
@@ -564,7 +588,10 @@ public class UserService {
     }
 
     private Map<String, String> processSocialLogin(String email, String nickname, String prefix) {
-        UserDto user = userDao.findByEmail(email);
+        UserDto user = userDao.findByEmailIncludeDeleted(email);
+        if (user != null && user.getDeletedAt() != null)
+            throw new BusinessException(HttpStatus.FORBIDDEN, "탈퇴 처리된 계정입니다. 계정 복구 후 이용해주세요.");
+        if (user != null) ensureSocialLoginAllowed(user);
         if (user == null) {
             UserDto newUser = new UserDto();
             newUser.setEmail(email);
@@ -626,14 +653,14 @@ public class UserService {
 
     private void validateImageFile(org.springframework.web.multipart.MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new RuntimeException("이미지 파일이 없습니다.");
+            throw new BusinessException("이미지 파일이 없습니다.");
         }
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new RuntimeException("이미지 파일만 업로드 가능합니다.");
+            throw new BusinessException("이미지 파일만 업로드 가능합니다.");
         }
         if (file.getSize() > 5 * 1024 * 1024) {
-            throw new RuntimeException("파일 크기는 5MB 이하만 가능합니다.");
+            throw new BusinessException("파일 크기는 5MB 이하만 가능합니다.");
         }
     }
 }

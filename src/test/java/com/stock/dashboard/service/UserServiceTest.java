@@ -485,4 +485,88 @@ class UserServiceTest {
             assertThat(res.get("recoverable")).isEqualTo(false);
         }
     }
+
+    @Nested
+    @DisplayName("[보안] 본인인증·닉네임·가입 검증")
+    class SecurityRegressionTest {
+
+        private Map<String, String> cert(String name, String phone) {
+            return Map.of("name", name, "phone", phone, "birth", "1990-01-01");
+        }
+
+        @Test
+        @DisplayName("등록된 이름·전화번호와 본인인증 결과가 다르면 verifyToken 을 발급하지 않는다")
+        void verifyIdentity_rejectsDifferentPerson() throws Exception {
+            when(userDao.findByEmail("me@test.com")).thenReturn(activeUser("me@test.com", "P@ssw0rd!"));
+            when(portoneService.getCertification("imp_1")).thenReturn(cert("김철수", "01099998888"));
+
+            assertThatThrownBy(() -> userService.verifyIdentityForAction("me@test.com", "imp_1"))
+                    .hasMessageContaining("일치하지 않습니다");
+            verify(jwtUtil, never()).generateVerifyToken(anyString());
+        }
+
+        @Test
+        @DisplayName("본인인증 결과가 회원 정보와 같으면 verifyToken 을 발급한다(하이픈 무시)")
+        void verifyIdentity_issuesTokenForSamePerson() throws Exception {
+            when(userDao.findByEmail("me@test.com")).thenReturn(activeUser("me@test.com", "P@ssw0rd!"));
+            when(portoneService.getCertification("imp_1")).thenReturn(cert("홍길동", "010-1234-5678"));
+            when(jwtUtil.generateVerifyToken("me@test.com")).thenReturn("vt");
+
+            assertThat(userService.verifyIdentityForAction("me@test.com", "imp_1")).containsEntry("verifyToken", "vt");
+        }
+
+        @Test
+        @DisplayName("PortOne 이 '완료되지 않은 인증'으로 판단하면 소셜 가입자도 통과하지 못한다")
+        void verifyIdentity_socialUserNeedsCompletedCertification() throws Exception {
+            UserDto social = activeUser("kakao_1@kakao.com", "x");
+            social.setName(null);
+            social.setPhone(null);
+            when(userDao.findByEmail("kakao_1@kakao.com")).thenReturn(social);
+            when(portoneService.getCertification("imp_bogus"))
+                    .thenThrow(new com.stock.dashboard.exception.BusinessException("본인인증이 완료되지 않았습니다."));
+
+            assertThatThrownBy(() -> userService.verifyIdentityForAction("kakao_1@kakao.com", "imp_bogus"))
+                    .hasMessageContaining("본인인증이 완료되지 않았습니다");
+            verify(jwtUtil, never()).generateVerifyToken(anyString());
+        }
+
+        @Test
+        @DisplayName("다른 회원이 쓰는 닉네임으로 바꾸면 SQL 오류 대신 안내 메시지를 준다")
+        void updateNickname_duplicate() {
+            when(userDao.findByEmail("me@test.com")).thenReturn(activeUser("me@test.com", "P@ssw0rd!"));
+            when(userDao.checkNicknameExists("alice01")).thenReturn(1);
+
+            assertThatThrownBy(() -> userService.updateNickname("me@test.com", "alice01"))
+                    .hasMessageContaining("이미 사용 중인 닉네임");
+            verify(userDao, never()).updateNickname(any());
+        }
+
+        @Test
+        @DisplayName("가입 요청의 이름·전화번호가 본인인증 결과와 다르면 가입을 막는다")
+        void signup_rejectsIdentityMismatch() throws Exception {
+            com.stock.dashboard.dto.UserSignupRequest req = new com.stock.dashboard.dto.UserSignupRequest();
+            req.setEmail("new@test.com");
+            req.setPassword("P@ssw0rd!");
+            req.setNickname("newbie");
+            req.setName("다른사람");
+            req.setPhone("01012345678");
+            req.setResidentNo("9001011234567");
+            req.setImpUid("imp_1");
+            when(portoneService.getCertification("imp_1")).thenReturn(cert("홍길동", "01012345678"));
+
+            assertThatThrownBy(() -> userService.signup(req))
+                    .hasMessageContaining("본인인증 정보와 입력한");
+            verify(userDao, never()).insertUser(any());
+        }
+
+        @Test
+        @DisplayName("로그인 사용자 정보가 없으면 NPE 대신 다시 로그인 안내")
+        void missingUser_returnsUnauthorizedMessage() {
+            when(userDao.findByEmail("gone@test.com")).thenReturn(null);
+
+            assertThatThrownBy(() -> userService.getWatchlist("gone@test.com"))
+                    .isInstanceOf(com.stock.dashboard.exception.BusinessException.class)
+                    .hasMessageContaining("다시 로그인");
+        }
+    }
 }

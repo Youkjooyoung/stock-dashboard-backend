@@ -7,14 +7,19 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.stock.dashboard.config.HttpClientConfig;
+import com.stock.dashboard.exception.BusinessException;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class EmailService {
 
     private static final String RESEND_URL = "https://api.resend.com/emails";
@@ -28,6 +33,7 @@ public class EmailService {
     @Value("${app.base.url}")
     private String baseUrl;
 
+    private final HttpClient   httpClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void sendVerificationEmail(String toEmail, String token) throws Exception {
@@ -109,15 +115,23 @@ public class EmailService {
         ));
     }
 
+    // 발송 실패(4xx/5xx)를 성공으로 처리하지 않도록 상태 코드를 확인한다.
     private int callResend(String json) throws Exception {
-        return HttpClient.newHttpClient().send(
+        HttpResponse<String> response = httpClient.send(
             HttpRequest.newBuilder()
                 .uri(URI.create(RESEND_URL))
+                .timeout(HttpClientConfig.REQUEST_TIMEOUT)
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(json))
                 .build(),
             HttpResponse.BodyHandlers.ofString()
-        ).statusCode();
+        );
+        int status = response.statusCode();
+        if (status < 200 || status >= 300) {
+            log.error("[이메일] Resend 발송 실패: status={}", status);
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        }
+        return status;
     }
 }

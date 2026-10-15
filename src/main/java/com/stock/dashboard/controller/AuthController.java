@@ -7,18 +7,19 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.stock.dashboard.JwtUtil;
-import com.stock.dashboard.dto.UserDto;
 import com.stock.dashboard.dto.UserLoginRequest;
 import com.stock.dashboard.dto.UserSignupRequest;
+import com.stock.dashboard.exception.BusinessException;
+import com.stock.dashboard.service.OAuthLinkStateStore;
 import com.stock.dashboard.service.UserService;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -35,8 +36,8 @@ public class AuthController {
     @Value("${google.redirect-uri}") private String googleRedirectUri;
     @Value("${app.base.url}")        private String appBaseUrl;
 
-    private final JwtUtil     jwtUtil;
-    private final UserService userService;
+    private final UserService         userService;
+    private final OAuthLinkStateStore linkStateStore;
 
     @PostMapping("/certify")
     public ResponseEntity<Map<String, Object>> certify(@RequestBody Map<String, String> body) throws Exception {
@@ -65,23 +66,6 @@ public class AuthController {
         response.sendRedirect(buildOAuthRedirect(userService.googleLogin(code), "google"));
     }
 
-    @GetMapping("/google/link")
-    public void googleLink(@RequestParam String token, HttpServletResponse response) throws Exception {
-        String state = URLEncoder.encode("google:" + token, StandardCharsets.UTF_8);
-        response.sendRedirect(String.format(
-            "https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=openid%%20email%%20profile&state=%s",
-            googleClientId, appBaseUrl + "/oauth/link", state
-        ));
-    }
-
-    @GetMapping("/google/link/callback")
-    public ResponseEntity<Map<String, Object>> googleLinkCallback(
-            @RequestParam String code,
-            @RequestParam String token) throws Exception {
-        userService.linkGoogle(token, code);
-        return ResponseEntity.ok(Map.of("success", true));
-    }
-
     @GetMapping("/google/login")
     public void googleLogin(HttpServletResponse response) throws Exception {
         response.sendRedirect(String.format(
@@ -95,21 +79,38 @@ public class AuthController {
         response.sendRedirect(buildOAuthRedirect(userService.kakaoLogin(code), "kakao"));
     }
 
-    @GetMapping("/kakao/link")
-    public void kakaoLink(@RequestParam String token, HttpServletResponse response) throws Exception {
-        String state = URLEncoder.encode("kakao:" + token, StandardCharsets.UTF_8);
-        response.sendRedirect(String.format(
-            "https://kauth.kakao.com/oauth/authorize?client_id=%s&redirect_uri=%s&response_type=code&state=%s",
-            kakaoClientId, appBaseUrl + "/oauth/link", state
-        ));
+    /**
+     * 소셜 계정 연동 시작. 로그인한 사용자에게만 일회용 state 를 발급하고 이동할 URL 을 돌려준다.
+     * (/api/auth/link/** 는 SecurityConfig 의 permitAll 목록에 없으므로 인증이 필요하다.)
+     */
+    @PostMapping("/link/{provider}/start")
+    public ResponseEntity<Map<String, String>> startSocialLink(
+            @AuthenticationPrincipal String email,
+            @PathVariable String provider) {
+        String normalized = provider.toUpperCase();
+        String redirectUri = URLEncoder.encode(appBaseUrl + "/oauth/link", StandardCharsets.UTF_8);
+        String authorizeUrl = switch (normalized) {
+            case "GOOGLE" -> "https://accounts.google.com/o/oauth2/v2/auth?client_id=" + googleClientId
+                    + "&redirect_uri=" + redirectUri + "&response_type=code&scope=openid%20email%20profile";
+            case "KAKAO"  -> "https://kauth.kakao.com/oauth/authorize?client_id=" + kakaoClientId
+                    + "&redirect_uri=" + redirectUri + "&response_type=code";
+            default -> throw new BusinessException("지원하지 않는 소셜 서비스입니다.");
+        };
+        String state = linkStateStore.issue(email, normalized);
+        return ResponseEntity.ok(Map.of("url", authorizeUrl + "&state=" + state));
     }
 
-    @GetMapping("/kakao/link/callback")
-    public ResponseEntity<Map<String, Object>> kakaoLinkCallback(
-            @RequestParam String code,
-            @RequestParam String token) throws Exception {
-        userService.linkKakao(token, code);
-        return ResponseEntity.ok(Map.of("success", true));
+    /** 소셜 서비스에서 돌아온 code/state 로 연동을 마친다. state 를 발급받은 사용자 본인만 완료할 수 있다. */
+    @PostMapping("/link/callback")
+    public ResponseEntity<Map<String, Object>> completeSocialLink(
+            @AuthenticationPrincipal String email,
+            @RequestBody Map<String, String> body) throws Exception {
+        OAuthLinkStateStore.LinkRequest request = linkStateStore.consume(body.get("state"));
+        if (request == null || !request.email().equals(email)) {
+            throw new BusinessException("연동 요청이 만료되었거나 올바르지 않습니다. 다시 시도해주세요.");
+        }
+        userService.linkSocial(request.email(), request.provider(), body.get("code"));
+        return ResponseEntity.ok(Map.of("success", true, "provider", request.provider().toLowerCase()));
     }
 
     @GetMapping("/kakao/exchange")
@@ -151,11 +152,6 @@ public class AuthController {
         return ResponseEntity.ok(userService.refresh(body.get("refreshToken")));
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody UserDto dto) {
-        return ResponseEntity.ok(userService.register(dto));
-    }
-
     @PostMapping("/resend-verify")
     public ResponseEntity<Map<String, String>> resendVerify(@RequestBody Map<String, String> body) throws Exception {
         userService.resendVerifyEmail(body.get("email"));
@@ -177,10 +173,9 @@ public class AuthController {
 
     @PostMapping("/verify-identity")
     public ResponseEntity<Map<String, String>> verifyIdentity(
-            @RequestHeader("Authorization") String auth,
+            @AuthenticationPrincipal String email,
             @RequestBody Map<String, String> body) {
-        String token = jwtUtil.stripBearer(auth);
-        return ResponseEntity.ok(userService.verifyIdentityForAction(token, body.get("impUid")));
+        return ResponseEntity.ok(userService.verifyIdentityForAction(email, body.get("impUid")));
     }
 
     @PostMapping("/recover-account")

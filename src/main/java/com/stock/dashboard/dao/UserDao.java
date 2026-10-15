@@ -39,7 +39,7 @@ public interface UserDao {
 
 	void resetLoginFail(String email);
 
-	List<Integer> selectUserIdsByWatchTicker(String ticker);
+	List<String> selectUserEmailsByWatchTicker(String ticker);
 
 	List<Integer> selectWatchlist(int userId);
 
