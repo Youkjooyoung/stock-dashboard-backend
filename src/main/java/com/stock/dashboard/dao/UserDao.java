@@ -65,5 +65,7 @@ public interface UserDao {
 
 	void restoreUser(int userId);
 
+	void updateIdentity(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("name") String name, @org.apache.ibatis.annotations.Param("phone") String phone);
+
 	void updateForcePwChange(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("forcePwChange") String forcePwChange);
 }

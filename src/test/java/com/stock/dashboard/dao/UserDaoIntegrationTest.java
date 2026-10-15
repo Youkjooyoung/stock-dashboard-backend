@@ -121,13 +121,20 @@ class UserDaoIntegrationTest {
         String email = "eve-" + UUID.randomUUID() + "@test.com";
         userDao.insertUser(newUser(email, "eve" + System.nanoTime() % 10000));
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 4; i++) {
             userDao.updateLoginFail(email);
         }
+        UserDto afterFour = userDao.findByEmail(email);
+        assertThat(afterFour.getLoginFailCnt()).isEqualTo(4);
+        assertThat(afterFour.getAccountLocked()).isEqualTo("N");   // 예전 SQL 은 여기서 이미 잠겼다
+        assertThat(afterFour.getLockedUntil()).isNull();
+
+        userDao.updateLoginFail(email);
 
         UserDto user = userDao.findByEmail(email);
         assertThat(user.getLoginFailCnt()).isEqualTo(5);
         assertThat(user.getAccountLocked()).isEqualTo("Y");
+        assertThat(user.getLockedUntil()).isNotNull();
     }
 
     @Test

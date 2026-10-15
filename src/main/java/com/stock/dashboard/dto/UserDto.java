@@ -22,6 +22,7 @@ public class UserDto {
 	private String emailVerifyToken;
 	private int loginFailCnt;
 	private String accountLocked;
+	private Date lockedUntil;
 	private Date createdAt;
 	private Date deletedAt;
 	private String deleteReason;

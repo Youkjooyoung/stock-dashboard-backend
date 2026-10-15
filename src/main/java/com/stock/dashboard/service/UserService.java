@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stock.dashboard.InputValidator;
 import com.stock.dashboard.JwtUtil;
 import com.stock.dashboard.config.HttpClientConfig;
+import com.stock.dashboard.dao.CertificationUseDao;
 import com.stock.dashboard.dao.RefreshTokenDao;
 import com.stock.dashboard.dao.StockDao;
 import com.stock.dashboard.dao.UserDao;
@@ -48,6 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class UserService {
 
+    private final CertificationUseDao   certificationUseDao;
     private final EmailService          emailService;
     private final InputValidator        validator;
     private final JwtUtil               jwtUtil;
@@ -60,6 +63,9 @@ public class UserService {
     private final HttpClient            httpClient;
     private final ObjectMapper          objectMapper = new ObjectMapper();
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+
+    private static final int    MAX_LOGIN_FAILURES = 5;
+    private static final String LOCKED_MESSAGE     = "로그인 시도 횟수 초과로 15분간 로그인이 제한됩니다. 잠시 후 다시 시도해주세요.";
 
     @Value("${app.base.url}")          private String appBaseUrl;
     @Value("${kakao.client-id}")       private String kakaoClientId;
@@ -87,6 +93,7 @@ public class UserService {
         if (!certData.get("name").equals(req.getName())
                 || !normalizePhone(certData.get("phone")).equals(normalizePhone(req.getPhone())))
             throw new BusinessException("본인인증 정보와 입력한 이름 또는 휴대폰 번호가 다릅니다.");
+        consumeCertification(req.getImpUid(), req.getEmail(), "SIGNUP");
 
         UserDto dto = new UserDto();
         dto.setEmail(req.getEmail());
@@ -110,15 +117,14 @@ public class UserService {
         UserDto user = userDao.findByEmail(req.getEmail());
         if (user == null)
             throw new BusinessException("이메일 또는 비밀번호가 틀렸습니다.");
-        if ("Y".equals(user.getAccountLocked()))
-            throw new BusinessException("로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
+        ensureNotLocked(user);
         if (!"Y".equals(user.getEmailVerified()))
             throw new BusinessException("이메일 인증이 필요합니다.");
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             userDao.updateLoginFail(req.getEmail());
-            int remaining = 5 - (user.getLoginFailCnt() + 1);
-            if (remaining <= 0) throw new BusinessException("로그인 시도 횟수 초과로 계정이 잠겼습니다.");
+            int remaining = MAX_LOGIN_FAILURES - (user.getLoginFailCnt() + 1);
+            if (remaining <= 0) throw new BusinessException(HttpStatus.FORBIDDEN, LOCKED_MESSAGE);
             throw new BusinessException("비밀번호가 틀렸습니다. 남은 시도: " + remaining + "회");
         }
 
@@ -223,8 +229,34 @@ public class UserService {
     }
 
     private void ensureSocialLoginAllowed(UserDto user) {
-        if ("Y".equals(user.getAccountLocked()))
-            throw new BusinessException(HttpStatus.FORBIDDEN, "로그인 시도 횟수 초과로 계정이 잠겼습니다. 관리자에게 문의하세요.");
+        ensureNotLocked(user);
+    }
+
+    /**
+     * 잠긴 계정은 LOCKED_UNTIL(마지막 실패 후 15분)이 지나면 자동으로 풀린다.
+     * 예전에는 관리자만 풀 수 있어서, 남의 이메일로 5번 틀리면 그 계정을 영구히 막을 수 있었다.
+     * LOCKED_UNTIL 이 없는 잠금(관리자 처리 대상)은 그대로 막는다.
+     */
+    private void ensureNotLocked(UserDto user) {
+        if (!"Y".equals(user.getAccountLocked())) return;
+        Date until = user.getLockedUntil();
+        if (until == null)
+            throw new BusinessException(HttpStatus.FORBIDDEN, "계정이 잠겼습니다. 관리자에게 문의하세요.");
+        if (new Date().before(until))
+            throw new BusinessException(HttpStatus.FORBIDDEN, LOCKED_MESSAGE);
+        userDao.resetLoginFail(user.getEmail());
+        user.setAccountLocked("N");
+        user.setLoginFailCnt(0);
+        user.setLockedUntil(null);
+    }
+
+    /** 같은 본인인증 결과(imp_uid)를 두 번 쓰지 못하게 기록한다. */
+    private void consumeCertification(String impUid, String email, String purpose) {
+        try {
+            certificationUseDao.insertUse(impUid, email, purpose);
+        } catch (DuplicateKeyException e) {
+            throw new BusinessException(HttpStatus.CONFLICT, "이미 사용된 본인인증입니다. 다시 인증해주세요.");
+        }
     }
 
     public Map<String, String> refresh(String refreshToken) {
@@ -418,6 +450,7 @@ public class UserService {
         userSocialDao.deleteSocial(getUser(email).getUserId(), provider.toUpperCase());
     }
 
+    @Transactional
     public Map<String, String> verifyIdentityForAction(String email, String impUid) {
         UserDto user = getUser(email);
         if (impUid == null || impUid.isBlank()) throw new BusinessException("본인인증 정보가 없습니다.");
@@ -437,12 +470,19 @@ public class UserService {
         String certPhone = normalizePhone(certData.get("phone"));
 
         // 이름·전화번호를 등록한 회원은 인증 결과와 반드시 같아야 한다.
-        // 소셜 가입자처럼 등록 정보가 없으면 완료된 본인인증만 확인한다(기존 동작 유지).
         boolean hasIdentity = user.getName() != null && !user.getName().isBlank()
                 && user.getPhone() != null && !user.getPhone().isBlank();
         if (hasIdentity && (!user.getName().equals(certName) || !normalizePhone(user.getPhone()).equals(certPhone))) {
             throw new BusinessException("본인인증 정보가 회원 정보와 일치하지 않습니다.");
         }
+        // 소셜 가입자처럼 등록 정보가 없으면 첫 본인인증 결과를 등록한다. 다음부터는 이 정보와 대조한다.
+        if (!hasIdentity) {
+            UserIdentityResultDto owner = userDao.findActiveMemberByIdentity(certName, certPhone);
+            if (owner != null && owner.getUserId() != user.getUserId())
+                throw new BusinessException(HttpStatus.CONFLICT, "이미 다른 계정에 등록된 본인인증 정보입니다.");
+            userDao.updateIdentity(user.getUserId(), certName, certPhone);
+        }
+        consumeCertification(impUid, user.getEmail(), "VERIFY");
 
         String verifyToken = jwtUtil.generateVerifyToken(user.getEmail());
         return Map.of("verifyToken", verifyToken);

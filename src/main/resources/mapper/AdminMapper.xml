@@ -13,7 +13,7 @@
 
     <update id="unlockAccount" parameterType="int">
         UPDATE USERS
-        SET ACCOUNT_LOCKED = 'N', LOGIN_FAIL_CNT = 0
+        SET ACCOUNT_LOCKED = 'N', LOGIN_FAIL_CNT = 0, LOCKED_UNTIL = NULL
         WHERE USER_ID = #{userId}
     </update>
 

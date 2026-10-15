@@ -52,3 +52,12 @@ reads or writes the column first; the previous version fails on signup and login
 without it. Count remaining values, take a backup, run the script, then delete the
 backup and any older snapshots that still contain the data. The rollback
 (`sql/rollback/R20261015_restore_resident_no_column.sql`) only recreates an empty column.
+
+## V20261016_lock_until_and_certification_use.sql
+
+Adds `USERS.LOCKED_UNTIL` (time-based unlock after 15 minutes) and the
+`CERTIFICATION_USE` table (single-use PortOne certifications). Unlike the
+resident-number migration, apply this one **before** deploying: the new application
+reads both, while the previous version simply ignores them. Accounts that are locked
+when the script runs get `LOCKED_UNTIL = NOW() + 15 minutes`. Rollback:
+`sql/rollback/R20261016_drop_lock_until_and_certification_use.sql` (after reverting the application).
