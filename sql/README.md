@@ -1,5 +1,11 @@
 # Stock Dashboard database migration
 
+> **Since 2026-10-15 schema changes are managed by Flyway** in
+> `src/main/resources/db/migration` (`V1__baseline.sql` = production schema on
+> 2026-10-15, `V2__add_query_indexes.sql`, ...). Add a new `V<n>__<description>.sql`
+> file for every change and never edit a file that has already been applied.
+> The scripts below are the manual history before Flyway and are kept for reference only.
+
 `V20260824_add_query_indexes.sql` adds indexes for the read paths used by the
 dashboard, watchlist, alerts, portfolio, refresh tokens, and chat. The script is
 idempotent and resolves table-name casing through `INFORMATION_SCHEMA`.

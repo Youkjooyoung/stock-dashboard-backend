@@ -40,6 +40,12 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 - `@Scheduled` jobs run on the dedicated `taskScheduler` (`SchedulingConfig`), not on the WebSocket broker scheduler.
 - Test property files contain dummy values only.
 - Every security fix ships with a regression test.
+
+## Database Migrations
+- Schema changes go only into `src/main/resources/db/migration/V<n>__<description>.sql` (Flyway). Never edit a migration that is already applied; add a new version instead.
+- Migrations must work on an empty MySQL 8 database (CI integration tests build the schema with Flyway) and on production. Write table names in the production case (`USERS`, `portfolio`).
+- The application connects as a least-privilege user (`DB_USERNAME`); Flyway uses `FLYWAY_USER` with DDL rights on `stock_dashboard` only.
+- Production keeps `spring.flyway.enabled` off unless `FLYWAY_ENABLED=true` is set on the server.
 - Do not collect resident registration numbers (Personal Information Protection Act, Article 24-2). Identity comes from the PortOne certification result only.
 
 ## Operations State (2026-10-15)
@@ -47,7 +53,7 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 - Applied manually in production: `V20261015_unique_social_provider_email.sql`, `V20261015_drop_resident_no.sql`.
 - Login lockout is time based (`USERS.LOCKED_UNTIL`, 15 minutes). Accounts locked without `LOCKED_UNTIL` still need an admin unlock.
 - PortOne certifications are single use (`CERTIFICATION_USE`). Social users get their certified name/phone registered on first identity verification.
-- Schema changes are applied by hand from `sql/`; check each script's header for whether it runs before or after deployment. `V20261016_lock_until_and_certification_use.sql` must run **before** deploying the version that uses it.
+- Before Flyway, schema changes were applied by hand from `sql/` (all applied in production as of 2026-10-15). The unused upper-case `PORTFOLIO` table still exists in production; the code uses lower-case `portfolio`.
 
 ## Deployment Notes
 - Production runs on AWS and is deployed through GitHub Actions after push to `main`.

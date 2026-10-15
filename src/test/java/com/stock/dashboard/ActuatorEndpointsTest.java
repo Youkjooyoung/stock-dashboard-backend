@@ -16,7 +16,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest
+// actuator 노출만 확인하므로 DB 마이그레이션은 돌리지 않는다(Docker 없는 단위 테스트 단계에서도 실행).
+@SpringBootTest(properties = "spring.flyway.enabled=false")
 @AutoConfigureMockMvc
 @AutoConfigureObservability
 @ActiveProfiles("test")
