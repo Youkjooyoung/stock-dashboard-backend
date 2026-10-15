@@ -53,7 +53,8 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 - Applied manually in production: `V20261015_unique_social_provider_email.sql`, `V20261015_drop_resident_no.sql`.
 - Login lockout is time based (`USERS.LOCKED_UNTIL`, 15 minutes). Accounts locked without `LOCKED_UNTIL` still need an admin unlock.
 - PortOne certifications are single use (`CERTIFICATION_USE`). Social users get their certified name/phone registered on first identity verification.
-- Before Flyway, schema changes were applied by hand from `sql/` (all applied in production as of 2026-10-15). The unused upper-case `PORTFOLIO` table still exists in production; the code uses lower-case `portfolio`.
+- Before Flyway, schema changes were applied by hand from `sql/` (all applied in production as of 2026-10-15). Flyway is enabled in production since 2026-10-15 (`FLYWAY_USER=stock_migrator`); V1 is a baseline, V2 added query indexes, V3 drops the unused upper-case `PORTFOLIO` table only when it exists under that exact name and is empty.
+- On case-insensitive databases (Windows, macOS) `PORTFOLIO` and `portfolio` are the same table. Never drop or rename by name alone; check `BINARY table_name` first.
 
 ## Deployment Notes
 - Production runs on AWS and is deployed through GitHub Actions after push to `main`.
