@@ -36,3 +36,11 @@ idempotent and resolves table-name casing through `INFORMATION_SCHEMA`.
 
 Do not run this migration automatically from the application deployment. A
 failed online index build must not replace a healthy application release.
+
+## V20261015_unique_social_provider_email.sql
+
+Adds `UNIQUE (PROVIDER, PROVIDER_EMAIL)` to `USER_SOCIAL` so one social account
+cannot be linked to two members. Run the duplicate check query written at the top
+of the script first; the `ALTER` fails while duplicates exist. Back up the database
+before applying, and use `sql/rollback/R20261015_drop_unique_social_provider_email.sql`
+to revert. Like the index migration, apply it manually, not from the deployment.
