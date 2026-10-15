@@ -12,6 +12,10 @@ SSL_KEY_ALIAS=stock-dashboard
 DB_URL=jdbc:mysql://localhost:3306/stock_dashboard?serverTimezone=Asia/Seoul
 DB_USERNAME=stock_user
 DB_PASSWORD=change-me
+# Flyway: 마이그레이션 전용 계정(테이블 생성·변경 권한). 로컬에서는 DB_USERNAME 과 같아도 된다.
+FLYWAY_ENABLED=true
+FLYWAY_USER=stock_migrator
+FLYWAY_PASSWORD=change-me
 
 SPRING_CACHE_TYPE=simple
 REDIS_HOST=localhost
