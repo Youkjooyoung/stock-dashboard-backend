@@ -55,14 +55,6 @@ public class UserController {
         return ResponseEntity.ok(userService.getSocialLinks(email));
     }
 
-    @PostMapping("/social/link")
-    public ResponseEntity<String> linkSocial(
-            @AuthenticationPrincipal String email,
-            @RequestBody UserSocialDto dto) {
-        userService.saveSocialLink(email, dto);
-        return ResponseEntity.ok("연동 완료");
-    }
-
     @DeleteMapping("/social/unlink/{provider}")
     public ResponseEntity<String> unlinkSocial(
             @AuthenticationPrincipal String email,

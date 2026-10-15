@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -15,6 +16,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.stock.dashboard.exception.BusinessException;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,7 +48,8 @@ public class AiAnalysisService {
 
     public String analyze(String prompt) throws Exception {
         if (!StringUtils.hasText(apiKey)) {
-            throw new IllegalStateException("OPENAI_API_KEY environment variable is not configured.");
+            log.error("OPENAI_API_KEY environment variable is not configured.");
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "AI 분석을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.");
         }
 
         ObjectNode body = objectMapper.createObjectNode();
@@ -67,13 +70,13 @@ public class AiAnalysisService {
 
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             log.error("OpenAI API error: {} - {}", response.statusCode(), response.body());
-            throw new RuntimeException("AI analysis request failed. HTTP " + response.statusCode());
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "AI 분석 요청에 실패했습니다. 잠시 후 다시 시도해주세요.");
         }
 
         String analysis = extractOutputText(response.body());
         if (!StringUtils.hasText(analysis)) {
             log.error("OpenAI API response did not include text output: {}", response.body());
-            throw new RuntimeException("AI analysis response did not include text output.");
+            throw new BusinessException(HttpStatus.BAD_GATEWAY, "AI 분석 결과를 받지 못했습니다. 잠시 후 다시 시도해주세요.");
         }
 
         log.info("AI analysis completed - responseLength={}", analysis.length());

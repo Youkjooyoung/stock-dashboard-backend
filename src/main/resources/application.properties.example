@@ -37,7 +37,6 @@ PORTONE_API_SECRET=change-me
 RESEND_API_KEY=change-me
 RESEND_FROM_EMAIL=onboarding@resend.dev
 APP_BASE_URL=http://localhost:5173
-AES_SECRET_KEY=keep-existing-value-if-data-must-be-preserved
 
 JWT_SECRET_ACCESS=change-me
 JWT_SECRET_REFRESH=change-me
@@ -46,6 +45,7 @@ NOTIFY_COMPLETE_EMAIL=you@example.com
 
 OPENAI_API_KEY=change-me
 OPENAI_MODEL=gpt-5.4-mini
+OPENAI_RATE_LIMIT_PER_HOUR=20
 
 AWS_ACCESS_KEY_ID=change-me
 AWS_SECRET_ACCESS_KEY=change-me

@@ -3,6 +3,7 @@ package com.stock.dashboard.service;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dto.PriceAlertDto;
 import com.stock.dashboard.dto.StockPriceDto;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +51,7 @@ public class PriceAlertService {
 
                     if (triggered) {
                         alertDao.triggerAlert(alert.getAlertId());
-                        sendAlert("/topic/alert/" + alert.getUserId(), Map.of(
+                        sendAlert(alert.getUserEmail(), Map.of(
                             "type",         "PRICE_ALERT",
                             "ticker",       alert.getTicker(),
                             "stockName",    alert.getStockName(),
@@ -94,8 +96,8 @@ public class PriceAlertService {
                     "close",     close
                 );
 
-                userDao.selectUserIdsByWatchTicker(stock.getSrtnCd())
-                       .forEach(uid -> sendAlert("/topic/alert/" + uid, notification));
+                userDao.selectUserEmailsByWatchTicker(stock.getSrtnCd())
+                       .forEach(email -> sendAlert(email, notification));
             }
         } catch (Exception e) {
             log.warn("[big-move] failed to check stocks: {}", e.getMessage());
@@ -113,10 +115,13 @@ public class PriceAlertService {
     }
 
     private UserDto getUser(String email) {
-        return userDao.findByEmail(email);
+        UserDto user = email != null ? userDao.findByEmail(email) : null;
+        if (user == null) throw new BusinessException(HttpStatus.UNAUTHORIZED, "사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+        return user;
     }
 
-    private void sendAlert(String destination, Map<String, Object> payload) {
-        messagingTemplate.convertAndSend(destination, payload);
+    // 본인의 웹소켓 세션(/user/queue/alert)에만 전달된다. 예전 /topic/alert/{userId} 는 누구나 구독할 수 있었다.
+    private void sendAlert(String email, Map<String, Object> payload) {
+        messagingTemplate.convertAndSendToUser(email, "/queue/alert", payload);
     }
 }

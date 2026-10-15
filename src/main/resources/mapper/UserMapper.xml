@@ -23,7 +23,7 @@
 
     <select id="findByEmail" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-               ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+               ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
                LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
@@ -46,11 +46,11 @@
     <insert id="insertUser" parameterType="com.stock.dashboard.dto.UserDto">
         INSERT INTO USERS (
             EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-            ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+            ADDRESS, ADDRESS_DETAIL,
             EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN, CREATED_AT
         ) VALUES (
             #{email}, #{password}, #{name}, #{nickname}, #{phone},
-            #{address}, #{addressDetail}, #{residentNo},
+            #{address}, #{addressDetail},
             'N', #{emailVerifyToken}, NOW()
         )
     </insert>
@@ -70,10 +70,11 @@
 	WHERE EMAIL = #{_parameter}
     </update>
 
-    <select id="selectUserIdsByWatchTicker" resultType="int">
-        SELECT W.USER_ID
+    <select id="selectUserEmailsByWatchTicker" resultType="string">
+        SELECT U.EMAIL
         FROM USER_WATCHLIST W
         JOIN STOCK_ITEM I ON W.ITEM_ID = I.ITEM_ID
+        JOIN USERS U ON W.USER_ID = U.USER_ID AND U.DELETED_AT IS NULL
         WHERE I.TICKER = #{param1}
     </select>
 
@@ -123,7 +124,12 @@
     </update>
 
     <select id="findById" resultType="com.stock.dashboard.dto.UserDto">
-   	 SELECT * FROM USERS WHERE USER_ID = #{userId}
+        SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
+               EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
+               LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
+               DELETED_AT, FORCE_PW_CHANGE
+        FROM USERS
+        WHERE USER_ID = #{userId} AND DELETED_AT IS NULL
     </select>
 
     <select id="findProfileImageUrl" parameterType="long" resultType="string">
@@ -136,7 +142,7 @@
 
     <select id="findByEmailIncludeDeleted" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-               ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+               ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
                LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE

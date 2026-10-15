@@ -14,7 +14,6 @@ public class UserDto {
 	private String phone;
 	private String address;
 	private String addressDetail;
-	private String residentNo;
 	private String impUid;
 	private String passwordResetToken;
 	private Date passwordResetExpiry;

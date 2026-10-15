@@ -20,10 +20,11 @@
     </select>
 
     <select id="selectActiveAlerts" resultType="com.stock.dashboard.dto.PriceAlertDto">
-        SELECT ALERT_ID, USER_ID, ITEM_ID, TICKER, STOCK_NAME,
-        TARGET_PRICE, ALERT_TYPE, IS_TRIGGERED, CREATED_AT
-        FROM PRICE_ALERT
-        WHERE IS_TRIGGERED = 'N'
+        SELECT A.ALERT_ID, A.USER_ID, U.EMAIL AS USER_EMAIL, A.ITEM_ID, A.TICKER, A.STOCK_NAME,
+        A.TARGET_PRICE, A.ALERT_TYPE, A.IS_TRIGGERED, A.CREATED_AT
+        FROM PRICE_ALERT A
+        JOIN USERS U ON U.USER_ID = A.USER_ID AND U.DELETED_AT IS NULL
+        WHERE A.IS_TRIGGERED = 'N'
     </select>
 
     <update id="triggerAlert">

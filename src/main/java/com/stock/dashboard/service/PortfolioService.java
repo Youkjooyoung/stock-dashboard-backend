@@ -2,12 +2,14 @@ package com.stock.dashboard.service;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import com.stock.dashboard.dao.PortfolioDao;
 import com.stock.dashboard.dao.UserDao;
 import com.stock.dashboard.dto.PortfolioDto;
 import com.stock.dashboard.dto.UserDto;
+import com.stock.dashboard.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 
@@ -35,6 +37,8 @@ public class PortfolioService {
     }
 
     private UserDto getUser(String email) {
-        return userDao.findByEmail(email);
+        UserDto user = email != null ? userDao.findByEmail(email) : null;
+        if (user == null) throw new BusinessException(HttpStatus.UNAUTHORIZED, "사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.");
+        return user;
     }
 }

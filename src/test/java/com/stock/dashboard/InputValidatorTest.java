@@ -102,34 +102,38 @@ class InputValidatorTest {
     }
 
     @Nested
-    @DisplayName("validateResidentNo()")
-    class ResidentNoTest {
-        @Test
-        void _13자리_숫자_통과() {
-            assertThatCode(() -> validator.validateResidentNo("9001011234567")).doesNotThrowAnyException();
-        }
-
-        @ParameterizedTest
-        @ValueSource(strings = {"900101-1234567", "abcdefghijklm", "12345", ""})
-        void 형식_오류는_예외(String invalid) {
-            assertThatThrownBy(() -> validator.validateResidentNo(invalid))
-                    .hasMessageContaining("주민등록번호");
-        }
-    }
-
-    @Nested
     @DisplayName("SQL Injection / XSS 차단")
     class MaliciousInputTest {
+        @ParameterizedTest(name = "정상 값: {0}")
+        @ValueSource(strings = {"walter@example.com", "drop-table@test.com", "select.kim@naver.com"})
+        void SQL_단어가_들어간_정상_이메일은_통과한다(String email) {
+            // 금지어 검사는 정상 사용자를 막기만 했다. SQL 인젝션은 MyBatis #{} 바인딩이 막는다.
+            assertThatCode(() -> validator.validateEmail(email)).doesNotThrowAnyException();
+        }
+
         @Test
-        void SQL_키워드_포함_이메일은_예외() {
-            assertThatThrownBy(() -> validator.validateEmail("drop-table@test.com"))
-                    .isInstanceOf(RuntimeException.class);
+        void SQL_단어가_들어간_정상_비밀번호는_통과한다() {
+            assertThatCode(() -> validator.validatePassword("Dropbox1!")).doesNotThrowAnyException();
+            assertThatCode(() -> validator.validatePassword("Tom&Jerry1")).doesNotThrowAnyException();
+        }
+
+        @ParameterizedTest(name = "형식 위반: {0}")
+        @ValueSource(strings = {"a' OR 1=1 --@x.com", "<script>@x.com", "user;drop@x.com"})
+        void 이메일_형식에_없는_문자는_예외(String invalid) {
+            assertThatThrownBy(() -> validator.validateEmail(invalid))
+                    .hasMessageContaining("올바른 이메일 형식");
         }
 
         @Test
         void XSS_특수문자_포함_닉네임은_예외() {
             assertThatThrownBy(() -> validator.validateNickname("<script>"))
                     .isInstanceOf(RuntimeException.class);
+        }
+
+        @Test
+        void 너무_긴_비밀번호는_예외() {
+            assertThatThrownBy(() -> validator.validatePassword("Aa1!" + "x".repeat(61)))
+                    .hasMessageContaining("비밀번호");
         }
     }
 }
