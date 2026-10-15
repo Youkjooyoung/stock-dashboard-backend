@@ -40,10 +40,11 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 - `@Scheduled` jobs run on the dedicated `taskScheduler` (`SchedulingConfig`), not on the WebSocket broker scheduler.
 - Test property files contain dummy values only.
 - Every security fix ships with a regression test.
+- Do not collect resident registration numbers (Personal Information Protection Act, Article 24-2). Identity comes from the PortOne certification result only.
 
 ## Known Open Items (2026-10-15)
-- Login lockout can be triggered by anyone who knows an email, and auth endpoints have no rate limiting (needs infrastructure decision: proxy IP headers, time-based unlock column).
-- Signup still collects the resident registration number; decide whether to remove it (PortOne already provides birth date and gender).
+- Login lockout can be triggered by anyone who knows an email, and auth endpoints have no rate limiting. The API host runs nginx 1.24 (Let's Encrypt TLS, 80 -> 443 redirect) in front of Spring on 8443, so Spring sees 127.0.0.1 as the client unless nginx forwards `X-Forwarded-For`. Prefer nginx `limit_req` for auth endpoints and a time-based unlock column.
+- Resident registration numbers are no longer collected. Apply `sql/V20261015_drop_resident_no.sql` after deploying this version, then delete older DB backups/snapshots that still contain the column and remove `AES_SECRET_KEY` from the server.
 - Social users without a registered name/phone pass identity verification with any completed certification.
 - `sql/V20261015_unique_social_provider_email.sql` must be applied manually after checking for duplicates.
 

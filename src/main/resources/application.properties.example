@@ -37,7 +37,6 @@ PORTONE_API_SECRET=change-me
 RESEND_API_KEY=change-me
 RESEND_FROM_EMAIL=onboarding@resend.dev
 APP_BASE_URL=http://localhost:5173
-AES_SECRET_KEY=keep-existing-value-if-data-must-be-preserved
 
 JWT_SECRET_ACCESS=change-me
 JWT_SECRET_REFRESH=change-me

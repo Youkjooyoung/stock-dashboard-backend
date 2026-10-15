@@ -11,6 +11,5 @@ public class UserSignupRequest {
     private String phone;
     private String address;
     private String addressDetail;
-    private String residentNo;
     private String impUid;
 }

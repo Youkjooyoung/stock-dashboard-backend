@@ -39,7 +39,6 @@ class UserDaoIntegrationTest {
         dto.setPhone("01012345678");
         dto.setAddress("서울");
         dto.setAddressDetail("101호");
-        dto.setResidentNo("encrypted");
         dto.setEmailVerifyToken(UUID.randomUUID().toString());
         return dto;
     }

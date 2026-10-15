@@ -39,7 +39,6 @@ import com.stock.dashboard.dto.UserLoginRequest;
 import com.stock.dashboard.dto.UserSignupRequest;
 import com.stock.dashboard.dto.UserSocialDto;
 import com.stock.dashboard.exception.BusinessException;
-import com.stock.dashboard.util.AesEncryptor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,7 +48,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class UserService {
 
-    private final AesEncryptor          aesEncryptor;
     private final EmailService          emailService;
     private final InputValidator        validator;
     private final JwtUtil               jwtUtil;
@@ -76,7 +74,6 @@ public class UserService {
         validator.validateEmail(req.getEmail());
         validator.validatePassword(req.getPassword());
         validator.validateNickname(req.getNickname());
-        validator.validateResidentNo(req.getResidentNo());
         validator.validatePhone(req.getPhone());
 
         if (checkEmailExists(req.getEmail()))
@@ -86,7 +83,6 @@ public class UserService {
             throw new IllegalArgumentException("본인인증이 필요합니다.");
 
         Map<String, String> certData = portoneService.getCertification(req.getImpUid());
-        validateResidentNoByCert(req.getResidentNo(), certData.get("birth"));
         // 이름·전화번호는 사용자가 보낸 값이 아니라 본인인증 결과와 같아야 한다.
         if (!certData.get("name").equals(req.getName())
                 || !normalizePhone(certData.get("phone")).equals(normalizePhone(req.getPhone())))
@@ -100,7 +96,6 @@ public class UserService {
         dto.setPhone(normalizePhone(certData.get("phone")));
         dto.setAddress(req.getAddress());
         dto.setAddressDetail(req.getAddressDetail());
-        dto.setResidentNo(aesEncryptor.encrypt(req.getResidentNo()));
         dto.setEmailVerifyToken(UUID.randomUUID().toString());
 
         userDao.insertUser(dto);
@@ -613,28 +608,6 @@ public class UserService {
         String newImageUrl = s3Service.upload(file, "profiles");
         userDao.updateProfileImageUrl(userId, newImageUrl);
         return newImageUrl;
-    }
-
-    private void validateResidentNoByCert(String residentNo, String birth) {
-        if (birth == null || birth.isBlank())
-            throw new IllegalArgumentException("본인인증 생년월일 정보를 확인할 수 없습니다.");
-
-        String birthYYMMDD = birth.replace("-", "").substring(2);
-        String rrnFront    = residentNo.substring(0, 6);
-
-        if (!birthYYMMDD.equals(rrnFront))
-            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
-
-        int genderCode = Integer.parseInt(residentNo.substring(6, 7));
-        int birthYear  = Integer.parseInt(birth.substring(0, 4));
-
-        boolean is1900s = birthYear >= 1900 && birthYear <= 1999;
-        boolean is2000s = birthYear >= 2000 && birthYear <= 2099;
-
-        if (is1900s && genderCode != 1 && genderCode != 2)
-            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
-        if (is2000s && genderCode != 3 && genderCode != 4)
-            throw new IllegalArgumentException("주민등록번호가 본인인증 정보와 일치하지 않습니다.");
     }
 
     private String maskEmail(String email) {

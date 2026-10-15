@@ -34,13 +34,11 @@ import com.stock.dashboard.dao.UserSocialDao;
 import com.stock.dashboard.dto.UserDto;
 import com.stock.dashboard.dto.UserIdentityResultDto;
 import com.stock.dashboard.dto.UserLoginRequest;
-import com.stock.dashboard.util.AesEncryptor;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserService 단위 테스트")
 class UserServiceTest {
 
-    @Mock private AesEncryptor    aesEncryptor;
     @Mock private EmailService    emailService;
     @Mock private InputValidator  validator;
     @Mock private JwtUtil         jwtUtil;
@@ -550,13 +548,33 @@ class UserServiceTest {
             req.setNickname("newbie");
             req.setName("다른사람");
             req.setPhone("01012345678");
-            req.setResidentNo("9001011234567");
             req.setImpUid("imp_1");
             when(portoneService.getCertification("imp_1")).thenReturn(cert("홍길동", "01012345678"));
 
             assertThatThrownBy(() -> userService.signup(req))
                     .hasMessageContaining("본인인증 정보와 입력한");
             verify(userDao, never()).insertUser(any());
+        }
+
+        @Test
+        @DisplayName("주민등록번호 없이 가입되고, 이름·전화번호는 본인인증 결과로 저장된다")
+        void signup_withoutResidentNumber() throws Exception {
+            com.stock.dashboard.dto.UserSignupRequest req = new com.stock.dashboard.dto.UserSignupRequest();
+            req.setEmail("new@test.com");
+            req.setPassword("P@ssw0rd!");
+            req.setNickname("newbie");
+            req.setName("홍길동");
+            req.setPhone("01012345678");
+            req.setImpUid("imp_1");
+            when(portoneService.getCertification("imp_1")).thenReturn(cert("홍길동", "010-1234-5678"));
+
+            userService.signup(req);
+
+            org.mockito.ArgumentCaptor<UserDto> saved = org.mockito.ArgumentCaptor.forClass(UserDto.class);
+            verify(userDao).insertUser(saved.capture());
+            assertThat(saved.getValue().getName()).isEqualTo("홍길동");
+            assertThat(saved.getValue().getPhone()).isEqualTo("01012345678");
+            verify(emailService).sendVerificationEmail(eq("new@test.com"), anyString());
         }
 
         @Test

@@ -102,22 +102,6 @@ class InputValidatorTest {
     }
 
     @Nested
-    @DisplayName("validateResidentNo()")
-    class ResidentNoTest {
-        @Test
-        void _13자리_숫자_통과() {
-            assertThatCode(() -> validator.validateResidentNo("9001011234567")).doesNotThrowAnyException();
-        }
-
-        @ParameterizedTest
-        @ValueSource(strings = {"900101-1234567", "abcdefghijklm", "12345", ""})
-        void 형식_오류는_예외(String invalid) {
-            assertThatThrownBy(() -> validator.validateResidentNo(invalid))
-                    .hasMessageContaining("주민등록번호");
-        }
-    }
-
-    @Nested
     @DisplayName("SQL Injection / XSS 차단")
     class MaliciousInputTest {
         @ParameterizedTest(name = "정상 값: {0}")

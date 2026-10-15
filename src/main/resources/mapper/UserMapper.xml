@@ -23,7 +23,7 @@
 
     <select id="findByEmail" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-               ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+               ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
                LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE
@@ -46,11 +46,11 @@
     <insert id="insertUser" parameterType="com.stock.dashboard.dto.UserDto">
         INSERT INTO USERS (
             EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-            ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+            ADDRESS, ADDRESS_DETAIL,
             EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN, CREATED_AT
         ) VALUES (
             #{email}, #{password}, #{name}, #{nickname}, #{phone},
-            #{address}, #{addressDetail}, #{residentNo},
+            #{address}, #{addressDetail},
             'N', #{emailVerifyToken}, NOW()
         )
     </insert>
@@ -142,7 +142,7 @@
 
     <select id="findByEmailIncludeDeleted" parameterType="String" resultType="com.stock.dashboard.dto.UserDto">
         SELECT USER_ID, EMAIL, PASSWORD, NAME, NICKNAME, PHONE,
-               ADDRESS, ADDRESS_DETAIL, RESIDENT_NO,
+               ADDRESS, ADDRESS_DETAIL,
                EMAIL_VERIFIED, EMAIL_VERIFY_TOKEN,
                LOGIN_FAIL_CNT, ACCOUNT_LOCKED, CREATED_AT, ROLE,
                DELETED_AT, DELETE_REASON, FORCE_PW_CHANGE

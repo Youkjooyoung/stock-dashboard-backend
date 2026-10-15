@@ -17,7 +17,6 @@ public class InputValidator {
     // BCrypt는 72바이트까지만 사용하므로 길이 상한을 둔다.
     private static final String PASSWORD_PATTERN = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$%^&*]).{8,64}$";
     private static final String PHONE_PATTERN    = "^01[0-9]{8,9}$";
-    private static final String RESIDENT_PATTERN = "^\\d{13}$";
     private static final int    EMAIL_MAX_LENGTH = 100;
 
     public void validateEmail(String email) {
@@ -40,10 +39,5 @@ public class InputValidator {
     public void validatePhone(String phone) {
         if (phone == null || !phone.matches(PHONE_PATTERN))
             throw new BusinessException("유효하지 않은 휴대폰 번호입니다.");
-    }
-
-    public void validateResidentNo(String residentNo) {
-        if (residentNo == null || !residentNo.matches(RESIDENT_PATTERN))
-            throw new BusinessException("주민등록번호 형식이 올바르지 않습니다.");
     }
 }

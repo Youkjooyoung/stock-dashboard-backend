@@ -44,3 +44,11 @@ cannot be linked to two members. Run the duplicate check query written at the to
 of the script first; the `ALTER` fails while duplicates exist. Back up the database
 before applying, and use `sql/rollback/R20261015_drop_unique_social_provider_email.sql`
 to revert. Like the index migration, apply it manually, not from the deployment.
+
+## V20261015_drop_resident_no.sql
+
+Clears and drops `USERS.RESIDENT_NO`. Deploy the application version that no longer
+reads or writes the column first; the previous version fails on signup and login
+without it. Count remaining values, take a backup, run the script, then delete the
+backup and any older snapshots that still contain the data. The rollback
+(`sql/rollback/R20261015_restore_resident_no_column.sql`) only recreates an empty column.

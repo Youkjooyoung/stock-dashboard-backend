@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS USERS (
     PHONE                 VARCHAR(20),
     ADDRESS               VARCHAR(255),
     ADDRESS_DETAIL        VARCHAR(255),
-    RESIDENT_NO           VARCHAR(255),
     ROLE                  VARCHAR(20)  DEFAULT 'USER',
     EMAIL_VERIFIED        CHAR(1)      DEFAULT 'N',
     EMAIL_VERIFY_TOKEN    VARCHAR(100),
