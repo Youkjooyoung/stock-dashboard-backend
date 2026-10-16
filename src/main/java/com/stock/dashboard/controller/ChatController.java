@@ -23,6 +23,7 @@ import com.stock.dashboard.dto.UserDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** 종목별 토론방. 지난 대화는 REST(/api/chat/{ticker})로, 새 메시지는 웹소켓(/app/chat/{ticker})으로 받는다. */
 @Slf4j
 @RestController
 @RequiredArgsConstructor

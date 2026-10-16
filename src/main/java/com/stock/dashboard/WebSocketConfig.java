@@ -11,6 +11,7 @@ import com.stock.dashboard.config.StompAuthChannelInterceptor;
 
 import lombok.RequiredArgsConstructor;
 
+/** 웹소켓(STOMP) 설정. 접속 주소는 /ws, 클라이언트가 보내는 주소는 /app/**, 구독은 /topic/**·/user/queue/**. */
 @Configuration
 @EnableWebSocketMessageBroker
 @RequiredArgsConstructor

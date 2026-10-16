@@ -20,6 +20,7 @@ import com.stock.dashboard.exception.BusinessException;
 
 import lombok.extern.slf4j.Slf4j;
 
+/** 컨트롤러 예외를 {"message": ...} 응답으로 바꾼다. BusinessException 등 사용자용 메시지만 그대로 보내고, 그 밖의 예외는 고정 문구로 감춘다. */
 @Slf4j
 @RestControllerAdvice(basePackages = "com.stock.dashboard.controller")
 public class GlobalExceptionHandler {

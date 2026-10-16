@@ -18,6 +18,7 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.RedisSerializationContext.SerializationPair;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+/** 조회 캐시 설정. 기본은 서버 메모리, spring.cache.type=redis 이면 Redis(캐시별 만료 시간)를 쓴다. */
 @Configuration
 @EnableCaching
 public class CacheConfig {

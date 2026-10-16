@@ -15,6 +15,7 @@ import com.stock.dashboard.service.AiUsageLimiter;
 
 import lombok.RequiredArgsConstructor;
 
+/** AI 분석 API. 요청 길이와 사용자별 사용 횟수(AiUsageLimiter)를 제한한 뒤 OpenAI 로 보낸다. */
 @RestController
 @RequestMapping("/api/ai")
 @RequiredArgsConstructor

@@ -1,5 +1,6 @@
 package com.stock.dashboard.service;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -45,6 +47,10 @@ import com.stock.dashboard.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * 회원 기능 전체: 가입·로그인·소셜 로그인/연동·비밀번호·본인인증·탈퇴/복구·관심 종목·프로필 이미지.
+ * (기능이 많아 고도화 목록 10번에서 Auth/OAuth/Account/Identity/Watchlist 로 나눌 예정)
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -66,6 +72,14 @@ public class UserService {
 
     private static final int    MAX_LOGIN_FAILURES = 5;
     private static final String LOCKED_MESSAGE     = "로그인 시도 횟수 초과로 15분간 로그인이 제한됩니다. 잠시 후 다시 시도해주세요.";
+    // 탈퇴 후 이 기간 안에는 계정을 복구할 수 있다.
+    private static final long   RECOVERY_PERIOD_MS = 14L * 24 * 60 * 60 * 1000;
+    private static final int    TEMP_PASSWORD_LENGTH = 10;
+    // 헷갈리기 쉬운 글자(I, l, O, 0, 1)를 뺀 임시 비밀번호용 문자
+    private static final String TEMP_PASSWORD_CHARS =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
+    private static final long   MAX_PROFILE_IMAGE_BYTES = 5L * 1024 * 1024;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @Value("${app.base.url}")          private String appBaseUrl;
     @Value("${kakao.client-id}")       private String kakaoClientId;
@@ -75,6 +89,7 @@ public class UserService {
     @Value("${google.client-secret}")  private String googleClientSecret;
     @Value("${google.redirect-uri}")   private String googleRedirectUri;
 
+    /** 이메일 회원가입. 본인인증(PortOne) 결과와 입력한 이름·전화번호가 같아야 가입되고, 인증 메일을 보낸다. */
     @Transactional(rollbackFor = Exception.class)
     public void signup(UserSignupRequest req) throws Exception {
         validator.validateEmail(req.getEmail());
@@ -109,7 +124,12 @@ public class UserService {
         emailService.sendVerificationEmail(dto.getEmail(), dto.getEmailVerifyToken());
     }
 
+    /**
+     * 이메일 로그인. 비밀번호를 5번 틀리면 15분 잠긴다(잠금 계산은 UserMapper.updateLoginFail).
+     * 성공하면 액세스·리프레시 토큰과 사용자 정보를 돌려준다.
+     */
     public Map<String, String> login(UserLoginRequest req) {
+        // 관리자 계정 아이디는 이메일 형식이 아닌 "admin" 이라 형식 검사에서 뺀다.
         if (!"admin".equals(req.getEmail())) {
             validator.validateEmail(req.getEmail());
         }
@@ -123,6 +143,7 @@ public class UserService {
 
         if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             userDao.updateLoginFail(req.getEmail());
+            // user 는 실패 횟수를 올리기 전에 읽은 값이므로 +1 해서 계산한다.
             int remaining = MAX_LOGIN_FAILURES - (user.getLoginFailCnt() + 1);
             if (remaining <= 0) throw new BusinessException(HttpStatus.FORBIDDEN, LOCKED_MESSAGE);
             throw new BusinessException("비밀번호가 틀렸습니다. 남은 시도: " + remaining + "회");
@@ -150,12 +171,17 @@ public class UserService {
         return handleSocialLogin("GOOGLE", "GOOGLE_", googleEmail(info), nickname);
     }
 
+    /**
+     * 소셜 로그인 공통 처리.
+     * 1) 이 소셜 계정이 기존 회원에게 연동돼 있으면 그 회원으로 로그인한다.
+     * 2) 아니면 소셜 이메일로 회원을 찾거나 새로 만든다(processSocialLogin).
+     */
     private Map<String, String> handleSocialLogin(String provider, String prefix, String email, String nickname) {
         UserSocialDto linked = userSocialDao.selectByProviderAndEmail(provider, email);
         if (linked != null) {
             UserDto linkedUser = userDao.findById(linked.getUserId());
             if (linkedUser != null) {
-                ensureSocialLoginAllowed(linkedUser);
+                ensureNotLocked(linkedUser);
                 Map<String, String> tokens = issueTokens(linkedUser);
                 tokens.put("nickname", nickname);
                 return tokens;
@@ -175,6 +201,7 @@ public class UserService {
             default -> throw new BusinessException("지원하지 않는 소셜 서비스입니다.");
         };
 
+        // 이미 같은 서비스(카카오/구글)가 연동돼 있으면 아무것도 하지 않는다.
         if (userSocialDao.checkSocialLink(user.getUserId(), provider) > 0) {
             return;
         }
@@ -190,6 +217,7 @@ public class UserService {
         userSocialDao.insertSocial(dto);
     }
 
+    // 소셜 로그인 2단계: 인가 code → 소셜 서비스의 액세스 토큰 → 사용자 정보(JSON)
     private JsonNode fetchKakaoUser(String code, String redirectUri) throws Exception {
         String tokenBody = formBody(Map.of(
             "grant_type", "authorization_code", "client_id", kakaoClientId,
@@ -228,10 +256,6 @@ public class UserService {
         return verified && !email.isEmpty() ? email : "google_" + id + "@google.com";
     }
 
-    private void ensureSocialLoginAllowed(UserDto user) {
-        ensureNotLocked(user);
-    }
-
     /**
      * 잠긴 계정은 LOCKED_UNTIL(마지막 실패 후 15분)이 지나면 자동으로 풀린다.
      * 예전에는 관리자만 풀 수 있어서, 남의 이메일로 5번 틀리면 그 계정을 영구히 막을 수 있었다.
@@ -259,6 +283,7 @@ public class UserService {
         }
     }
 
+    /** 리프레시 토큰으로 새 액세스 토큰을 발급한다. 서명이 맞아도 DB 에 저장된 토큰(마지막 로그인)이어야 한다. */
     public Map<String, String> refresh(String refreshToken) {
         if (!jwtUtil.validateRefreshToken(refreshToken))
             throw new BusinessException("유효하지 않은 Refresh Token입니다.");
@@ -281,6 +306,7 @@ public class UserService {
         userDao.insertWatchlist(getUser(email).getUserId(), itemId);
     }
 
+    /** 비밀번호 재설정 메일을 보낸다. 링크의 토큰은 1시간 동안 유효하다. */
     public void forgotPassword(String email) throws Exception {
         UserDto user = userDao.findByEmail(email);
         if (user == null) throw new BusinessException("존재하지 않는 이메일입니다.");
@@ -309,13 +335,16 @@ public class UserService {
         userDao.clearPasswordResetToken(user.getUserId());
     }
 
+    /**
+     * 가입 화면의 본인인증 확인. 인증 결과(이름·전화번호)를 돌려주고,
+     * 같은 사람이 이미 가입했으면 기존 계정 정보(가입 방식, 가린 이메일)도 함께 알려준다.
+     */
     public Map<String, Object> verifyCertification(String impUid) throws Exception {
         Map<String, String> cert = portoneService.getCertification(impUid);
         Map<String, Object> res = new HashMap<>(cert);
 
         String name  = cert.get("name");
-        String phone = cert.get("phone");
-        String phoneNormalized = phone != null ? phone.replaceAll("-", "") : "";
+        String phoneNormalized = normalizePhone(cert.get("phone"));
 
         UserIdentityResultDto found =
             (name != null && !name.isBlank() && !phoneNormalized.isBlank())
@@ -347,10 +376,6 @@ public class UserService {
 
     public boolean checkNicknameExists(String nickname) {
         return userDao.checkNicknameExists(nickname) > 0;
-    }
-
-    public UserDto findByEmail(String email) {
-        return userDao.findByEmail(email);
     }
 
     public List<UserSocialDto> getSocialLinks(String email) {
@@ -386,19 +411,11 @@ public class UserService {
         return stockDao.selectLatestPricesByItemIds(itemIds);
     }
 
+    /** 로그인한 사용자의 비밀번호 변경. 5분 안에 받은 본인인증 토큰(verifyToken)이 있어야 한다. */
     public void changePassword(String email, String verifyToken, String newPassword) {
-        if (verifyToken == null || verifyToken.isBlank()) {
-            throw new BusinessException("본인인증이 필요합니다.");
-        }
-        if (!jwtUtil.validateVerifyToken(verifyToken)) {
-            throw new BusinessException("본인인증이 만료되었습니다. 다시 인증해주세요.");
-        }
+        requireVerifyToken(verifyToken);
         validator.validatePassword(newPassword);
-        UserDto user = getUser(email);
-        String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
-        if (!user.getEmail().equals(verifyEmail)) {
-            throw new BusinessException("본인인증 정보가 일치하지 않습니다.");
-        }
+        UserDto user = getVerifiedUser(email, verifyToken);
         user.setPassword(passwordEncoder.encode(newPassword));
         userDao.updatePassword(user);
         if ("Y".equals(user.getForcePwChange())) {
@@ -425,19 +442,14 @@ public class UserService {
         userDao.updateNickname(user);
     }
 
+    /**
+     * 회원 탈퇴. 바로 지우지 않고 DELETED_AT 만 기록한다(소프트 삭제).
+     * 14일 안에는 recoverAccount 로 되살릴 수 있다.
+     */
     @Transactional
     public void deleteAccount(String email, String verifyToken, String deleteReason) {
-        if (verifyToken == null || verifyToken.isBlank()) {
-            throw new BusinessException("본인인증이 필요합니다.");
-        }
-        if (!jwtUtil.validateVerifyToken(verifyToken)) {
-            throw new BusinessException("본인인증이 만료되었습니다. 다시 인증해주세요.");
-        }
-        UserDto user = getUser(email);
-        String verifyEmail = jwtUtil.getEmailFromVerifyToken(verifyToken);
-        if (!user.getEmail().equals(verifyEmail)) {
-            throw new BusinessException("본인인증 정보가 일치하지 않습니다.");
-        }
+        requireVerifyToken(verifyToken);
+        UserDto user = getVerifiedUser(email, verifyToken);
         refreshTokenDao.deleteByUserId(user.getUserId());
         userDao.softDeleteUser(user.getUserId(), deleteReason != null ? deleteReason : "");
     }
@@ -450,6 +462,7 @@ public class UserService {
         userSocialDao.deleteSocial(getUser(email).getUserId(), provider.toUpperCase());
     }
 
+    /** 비밀번호 변경·탈퇴 전에 휴대폰 본인인증을 확인하고, 5분짜리 본인인증 토큰(verifyToken)을 발급한다. */
     @Transactional
     public Map<String, String> verifyIdentityForAction(String email, String impUid) {
         UserDto user = getUser(email);
@@ -488,15 +501,17 @@ public class UserService {
         return Map.of("verifyToken", verifyToken);
     }
 
+    /**
+     * 탈퇴 14일 이내 계정 복구. 본인 이름·전화번호가 맞으면 계정을 되살리고
+     * 임시 비밀번호를 메일로 보낸 뒤, 다음 로그인 때 비밀번호를 바꾸도록 표시한다.
+     */
     @Transactional
     public Map<String, String> recoverAccount(String email, String name, String phone) {
         UserDto deletedUser = userDao.findByEmailIncludeDeleted(email);
         if (deletedUser == null || deletedUser.getDeletedAt() == null) {
             throw new BusinessException("복구 가능한 계정이 없습니다.");
         }
-        long diffMs = System.currentTimeMillis() - deletedUser.getDeletedAt().getTime();
-        long twoWeeksMs = 14L * 24 * 60 * 60 * 1000;
-        if (diffMs > twoWeeksMs) {
+        if (!isWithinRecoveryPeriod(deletedUser)) {
             throw new BusinessException("복구 기간(2주)이 만료된 계정입니다.");
         }
         if (name == null || phone == null
@@ -518,31 +533,42 @@ public class UserService {
         return Map.of("message", "계정이 복구되었습니다. 이메일로 발송된 임시 비밀번호로 로그인해주세요.");
     }
 
+    /** 가입 화면에서 쓰는 확인: 이 이메일이 복구 가능한(탈퇴 14일 이내) 계정인지 알려준다. */
     public Map<String, Object> checkDeletedAccount(String email) {
         UserDto user = userDao.findByEmailIncludeDeleted(email);
-        Map<String, Object> result = new HashMap<>();
-        if (user != null && user.getDeletedAt() != null) {
-            long diffMs = System.currentTimeMillis() - user.getDeletedAt().getTime();
-            long twoWeeksMs = 14L * 24 * 60 * 60 * 1000;
-            if (diffMs <= twoWeeksMs) {
-                result.put("deleted", true);
-                result.put("recoverable", true);
-                return result;
-            }
-        }
-        result.put("deleted", false);
-        result.put("recoverable", false);
-        return result;
+        boolean recoverable = user != null && user.getDeletedAt() != null && isWithinRecoveryPeriod(user);
+        return Map.of("deleted", recoverable, "recoverable", recoverable);
     }
 
-    private String generateTempPassword() {
-        String chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$";
-        SecureRandom random = new SecureRandom();
+    private static boolean isWithinRecoveryPeriod(UserDto deletedUser) {
+        long elapsedMs = System.currentTimeMillis() - deletedUser.getDeletedAt().getTime();
+        return elapsedMs <= RECOVERY_PERIOD_MS;
+    }
+
+    private static String generateTempPassword() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 10; i++) {
-            sb.append(chars.charAt(random.nextInt(chars.length())));
+        for (int i = 0; i < TEMP_PASSWORD_LENGTH; i++) {
+            sb.append(TEMP_PASSWORD_CHARS.charAt(RANDOM.nextInt(TEMP_PASSWORD_CHARS.length())));
         }
         return sb.toString();
+    }
+
+    private void requireVerifyToken(String verifyToken) {
+        if (verifyToken == null || verifyToken.isBlank()) {
+            throw new BusinessException("본인인증이 필요합니다.");
+        }
+        if (!jwtUtil.validateVerifyToken(verifyToken)) {
+            throw new BusinessException("본인인증이 만료되었습니다. 다시 인증해주세요.");
+        }
+    }
+
+    // 본인인증 토큰은 로그인한 본인의 것이어야 한다(남이 받은 토큰으로 내 계정을 바꾸지 못하게).
+    private UserDto getVerifiedUser(String email, String verifyToken) {
+        UserDto user = getUser(email);
+        if (!user.getEmail().equals(jwtUtil.getEmailFromVerifyToken(verifyToken))) {
+            throw new BusinessException("본인인증 정보가 일치하지 않습니다.");
+        }
+        return user;
     }
 
     private String fetchAccessToken(String url, String body) throws Exception {
@@ -600,6 +626,7 @@ public class UserService {
         return user;
     }
 
+    // 로그인 성공 시 토큰 발급. 리프레시 토큰은 사용자당 하나만 DB 에 두어, 새로 로그인하면 예전 기기의 토큰은 무효가 된다.
     private Map<String, String> issueTokens(UserDto user) {
         String accessToken  = jwtUtil.generateAccessToken(user.getEmail(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
@@ -622,12 +649,15 @@ public class UserService {
         return tokens;
     }
 
+    // 소셜 이메일로 회원을 찾고, 없으면 새로 만든다. 탈퇴한 계정은 복구 전까지 로그인할 수 없다.
     private Map<String, String> processSocialLogin(String email, String nickname, String prefix) {
         UserDto user = userDao.findByEmailIncludeDeleted(email);
         if (user != null && user.getDeletedAt() != null)
             throw new BusinessException(HttpStatus.FORBIDDEN, "탈퇴 처리된 계정입니다. 계정 복구 후 이용해주세요.");
-        if (user != null) ensureSocialLoginAllowed(user);
-        if (user == null) {
+        if (user != null) {
+            ensureNotLocked(user);
+        } else {
+            // 소셜 회원은 비밀번호로 로그인하지 않는다. 그래도 컬럼이 비지 않도록 아무도 모르는 값을 넣는다.
             UserDto newUser = new UserDto();
             newUser.setEmail(email);
             newUser.setPassword(passwordEncoder.encode(prefix + System.currentTimeMillis()));
@@ -639,7 +669,9 @@ public class UserService {
         tokens.put("nickname", nickname);
         return tokens;
     }
-    public String updateProfileImage(Long userId, org.springframework.web.multipart.MultipartFile file) throws java.io.IOException {
+
+    /** 프로필 이미지를 S3 에 올리고, 예전 S3 이미지는 지운다. 새 이미지 주소를 돌려준다. */
+    public String updateProfileImage(Long userId, MultipartFile file) throws IOException {
         validateImageFile(file);
         String currentImageUrl = userDao.findProfileImageUrl(userId);
         if (currentImageUrl != null && currentImageUrl.contains("amazonaws.com")) {
@@ -650,6 +682,7 @@ public class UserService {
         return newImageUrl;
     }
 
+    // 기존 계정 안내용으로 이메일 앞 두 글자만 보여준다. 예) hong@test.com → ho***@test.com
     private String maskEmail(String email) {
         if (email == null || email.isBlank()) return null;
         if (isAutoGeneratedEmail(email)) return null;
@@ -664,7 +697,8 @@ public class UserService {
         return email != null && (email.startsWith("kakao_") || email.startsWith("google_"));
     }
 
-    private void validateImageFile(org.springframework.web.multipart.MultipartFile file) {
+    // 형식은 브라우저가 보낸 Content-Type 만 본다(파일 내용 검사는 고도화 목록 13번).
+    private void validateImageFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("이미지 파일이 없습니다.");
         }
@@ -672,7 +706,7 @@ public class UserService {
         if (contentType == null || !contentType.startsWith("image/")) {
             throw new BusinessException("이미지 파일만 업로드 가능합니다.");
         }
-        if (file.getSize() > 5 * 1024 * 1024) {
+        if (file.getSize() > MAX_PROFILE_IMAGE_BYTES) {
             throw new BusinessException("파일 크기는 5MB 이하만 가능합니다.");
         }
     }

@@ -18,6 +18,7 @@ import com.stock.dashboard.service.StockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** 주가 조회 API(누구나)와 수집 API(관리자 전용, SecurityConfig 참고). */
 @Slf4j
 @RestController
 @RequestMapping("/api/stock")

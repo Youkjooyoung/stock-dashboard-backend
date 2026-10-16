@@ -13,6 +13,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 
+/** JWT 발급·검증. 액세스(1시간)·리프레시(7일)·본인인증(5분) 토큰을 만든다. */
 @Component
 public class JwtUtil {
 

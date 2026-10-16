@@ -10,17 +10,6 @@
         ORDER BY ITEM_NM
     </select>
 
-    <select id="selectItemByTicker" parameterType="String" resultType="com.stock.dashboard.dto.StockItemDto">
-        SELECT ITEM_ID, TICKER, ITEM_NM, MARKET
-        FROM STOCK_ITEM
-        WHERE TICKER = #{ticker}
-    </select>
-
-    <insert id="insertStockItem" parameterType="com.stock.dashboard.dto.StockItemDto">
-        INSERT INTO STOCK_ITEM (TICKER, ITEM_NM, MARKET, CREATED_AT)
-        VALUES (#{ticker}, #{itemNm}, #{market}, NOW())
-    </insert>
-
     <insert id="insertStockItemIfNotExists" parameterType="com.stock.dashboard.dto.StockPriceDto">
         INSERT IGNORE INTO STOCK_ITEM (TICKER, ITEM_NM, MARKET, CREATED_AT)
         VALUES (#{srtnCd}, #{itmsNm}, #{mrktCtg}, NOW())

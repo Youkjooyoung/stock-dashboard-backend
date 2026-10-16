@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
+/** 요청마다 Authorization: Bearer 액세스 토큰을 검사해, 유효하면 로그인 사용자(이메일·권한)로 등록한다. */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {

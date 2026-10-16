@@ -12,10 +12,6 @@
         SELECT COUNT(*) FROM USERS WHERE NICKNAME = #{nickname}
     </select>
 
-    <delete id="deleteUser">
-        DELETE FROM USERS WHERE USER_ID = #{param1}
-    </delete>
-
     <delete id="deleteWatchlist">
         DELETE FROM USER_WATCHLIST
         WHERE USER_ID = #{param1} AND ITEM_ID = #{param2}
@@ -59,10 +55,6 @@
         INSERT INTO USER_WATCHLIST (USER_ID, ITEM_ID, ADDED_AT)
         VALUES (#{param1}, #{param2}, NOW())
     </insert>
-
-    <update id="lockAccount" parameterType="String">
-        UPDATE USERS SET ACCOUNT_LOCKED = 'Y' WHERE EMAIL = #{email}
-    </update>
 
     <update id="resetLoginFail" parameterType="String">
         UPDATE USERS

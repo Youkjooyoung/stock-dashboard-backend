@@ -15,6 +15,7 @@ import com.stock.dashboard.service.AdminService;
 
 import lombok.RequiredArgsConstructor;
 
+/** 관리자 화면 API(/api/admin/**). SecurityConfig 에서 ADMIN 권한만 허용한다. */
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor

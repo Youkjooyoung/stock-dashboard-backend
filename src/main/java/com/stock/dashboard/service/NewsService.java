@@ -20,6 +20,7 @@ import com.stock.dashboard.dto.NewsDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** 네이버 뉴스 검색 API 를 불러 최신순 뉴스 목록을 돌려준다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -47,6 +48,11 @@ public class NewsService {
                 .GET().build();
 
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        // 뉴스는 부가 정보라 실패해도 화면 전체를 오류로 만들지 않고 빈 목록을 돌려준다.
+        if (response.statusCode() != 200) {
+            log.warn("[뉴스] 네이버 검색 API 실패: status={}", response.statusCode());
+            return List.of();
+        }
 
         JsonNode items = mapper.readTree(response.body()).path("items");
 

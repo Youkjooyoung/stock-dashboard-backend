@@ -10,6 +10,7 @@ import com.stock.dashboard.service.NewsService;
 
 import lombok.RequiredArgsConstructor;
 
+/** 네이버 뉴스 검색 API 를 대신 불러 주는 API. 네이버 키가 브라우저에 드러나지 않게 서버가 호출한다. */
 @RestController
 @RequestMapping("/api/news")
 @RequiredArgsConstructor

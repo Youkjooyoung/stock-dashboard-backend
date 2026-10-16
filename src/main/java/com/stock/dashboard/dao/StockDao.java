@@ -10,7 +10,6 @@ import com.stock.dashboard.dto.StockPriceDto;
 
 @Mapper
 public interface StockDao {
-	int insertStockItem(StockItemDto dto);
 
 	int insertStockItemIfNotExists(StockPriceDto dto);
 
@@ -22,7 +21,6 @@ public interface StockDao {
 
 	List<StockItemDto> selectAllItems();
 
-	StockItemDto selectItemByTicker(String ticker);
 
 	List<StockPriceDto> selectPriceByTicker(String ticker);
 
