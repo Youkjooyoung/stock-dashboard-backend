@@ -34,7 +34,7 @@ NAVER_NEWS_URL=https://openapi.naver.com/v1/search/news.json
 
 GOOGLE_CLIENT_ID=change-me
 GOOGLE_CLIENT_SECRET=change-me
-GOOGLE_REDIRECT_URI=https://jyyouk.shop/oauth/google
+GOOGLE_REDIRECT_URI=https://jyyouk.store/oauth/google
 
 PORTONE_API_KEY=change-me
 PORTONE_API_SECRET=change-me

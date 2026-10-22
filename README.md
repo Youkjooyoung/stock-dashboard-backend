@@ -2,8 +2,8 @@
 
 국내 주식 시세 조회, 관심종목·포트폴리오 관리, 목표가 알림, 종목 채팅, AI 분석을 제공하는 주식 대시보드의 REST API·WebSocket 서버입니다.
 
-- 서비스: https://jyyouk.shop
-- API: https://api.jyyouk.shop
+- 서비스: https://jyyouk.store
+- API: https://api.jyyouk.store
 - 프론트엔드: [stock-dashboard-frontend](https://github.com/Youkjooyoung/stock-dashboard-frontend)
 
 ---

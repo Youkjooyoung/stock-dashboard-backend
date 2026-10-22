@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to EC2 (api.jyyouk.shop)
+    name: Deploy to EC2 (api.jyyouk.store)
     if: >-
       ${{
         github.event.workflow_run.conclusion == 'success' &&
@@ -161,6 +161,6 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          response="$(curl -fsS --max-time 15 https://api.jyyouk.shop/actuator/health)"
+          response="$(curl -fsS --max-time 15 https://api.jyyouk.store/actuator/health)"
           grep -q '"status":"UP"' <<< "$response"
           echo "Public backend health check passed."
