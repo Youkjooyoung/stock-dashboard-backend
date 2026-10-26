@@ -58,7 +58,9 @@ These rules come from the 2026-10-15 security review. Each one closes a problem 
 
 ## Deployment Notes
 - Production runs on AWS and is deployed through GitHub Actions after push to `main`.
-- After completing backend work, commit and push the changes, then verify the Backend Auto Deploy workflow result.
+- `main` is protected (PR required, `Test & Package (JDK 21)` must pass, admins included). Never commit or push to `main` directly.
+- Start each task on a new branch from `main` (`feat/`, `fix/`, `refactor/`, `docs/`, `ci/` + short description).
+- After completing backend work, push the branch and merge it through a PR, then verify the Backend Auto Deploy workflow result.
 - Before deployment, verify required environment variables are set on the server.
 - Rotate any credential that was previously committed or shared in plain text.
 
