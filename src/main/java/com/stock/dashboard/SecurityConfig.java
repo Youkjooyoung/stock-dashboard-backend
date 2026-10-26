@@ -13,15 +13,15 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import lombok.RequiredArgsConstructor;
+
+/** CORS 와 URL 별 접근 권한 설정. 목록에 없는 API 는 모두 로그인이 필요하다. */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
-
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
-    }
 
     // WebSocketConfig 도 같은 목록을 쓴다.
     static final List<String> ALLOWED_ORIGINS = List.of(

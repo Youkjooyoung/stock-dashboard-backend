@@ -25,6 +25,10 @@ import com.stock.dashboard.service.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * 로그인 전(또는 로그인 직후)에 쓰는 인증 API: 가입, 로그인, 토큰 갱신, 비밀번호 찾기, 본인인증, 소셜 로그인·연동.
+ * 대부분 SecurityConfig 에서 permitAll 이다. /link/** 와 /verify-identity 는 로그인이 필요하다.
+ */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -60,6 +64,13 @@ public class AuthController {
     public ResponseEntity<Map<String, Boolean>> checkEmail(@RequestBody Map<String, String> body) {
         return ResponseEntity.ok(Map.of("exists", userService.checkEmailExists(body.get("email"))));
     }
+
+    // ── 소셜 로그인 ─────────────────────────────────────────────
+    // 1) /{provider}/login       : 카카오·구글 로그인 화면으로 보낸다.
+    // 2) 카카오·구글이 redirect-uri 로 code 를 돌려준다.
+    //    - 프론트(/oauth/kakao 등)로 받으면 프론트가 /{provider}/exchange 로 code 를 보내 토큰을 JSON 으로 받는다.
+    //    - /{provider}/callback 으로 받으면 토큰을 주소(#) 에 붙여 프론트로 보낸다(예전 방식).
+    //      운영 서버 redirect-uri 가 프론트 주소인 것을 확인한 뒤 callback 두 개와 buildOAuthRedirect 를 지운다.
 
     @GetMapping("/google/callback")
     public void googleCallback(@RequestParam String code, HttpServletResponse response) throws Exception {
@@ -135,6 +146,7 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> login(@RequestBody UserLoginRequest req) {
         Map<String, String> tokens = userService.login(req);
         Map<String, Object> res = new HashMap<>(tokens);
+        // 계정 복구로 임시 비밀번호를 받은 사용자는 프론트가 비밀번호 변경 화면으로 보낸다(문자 "Y" 대신 true 로 응답).
         if ("Y".equals(tokens.get("forcePwChange"))) {
             res.put("forcePwChange", true);
         }

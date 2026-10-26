@@ -13,6 +13,7 @@ import com.stock.dashboard.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 
+/** 보유 종목(포트폴리오) 관리. 항상 로그인한 본인의 userId 로만 조회·삭제한다. */
 @Service
 @RequiredArgsConstructor
 public class PortfolioService {

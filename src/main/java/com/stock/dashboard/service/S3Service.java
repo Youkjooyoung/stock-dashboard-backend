@@ -15,6 +15,7 @@ import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.util.UUID;
 
+/** 프로필 이미지를 AWS S3 에 올리고 지운다. */
 @Service
 public class S3Service {
 

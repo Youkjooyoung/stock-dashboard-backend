@@ -17,6 +17,7 @@ import com.stock.dashboard.service.PriceAlertService;
 
 import lombok.RequiredArgsConstructor;
 
+/** 목표가 알림 등록·삭제·조회 API. 알림 검사는 StockScheduler 가 1분마다 한다. */
 @RestController
 @RequestMapping("/api/alert")
 @RequiredArgsConstructor

@@ -18,10 +18,13 @@ import com.stock.dashboard.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** 목표가 알림과 급등락 알림. 조건을 만족하면 그 사용자에게만 웹소켓으로 보낸다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PriceAlertService {
+
+    private static final double BIG_MOVE_PERCENT = 10;
 
     private final PriceAlertDao         alertDao;
     private final SimpMessagingTemplate messagingTemplate;
@@ -34,6 +37,11 @@ public class PriceAlertService {
         alertDao.insertAlert(dto);
     }
 
+    /**
+     * 아직 울리지 않은 목표가 알림을 모두 검사한다(StockScheduler 가 1분마다 호출).
+     * 최신 종가가 목표가 이상(ABOVE)/이하(BELOW)가 되면 한 번만 울리고 IS_TRIGGERED 를 'Y' 로 바꾼다.
+     * 알림 하나가 실패해도 나머지는 계속 검사한다.
+     */
     public void checkAlerts() {
         try {
             List<PriceAlertDto> alerts = alertDao.selectActiveAlerts();
@@ -41,6 +49,7 @@ public class PriceAlertService {
 
             for (PriceAlertDto alert : alerts) {
                 try {
+                    // 날짜 내림차순이라 첫 행이 가장 최근 종가다. (종목 전체 이력을 읽으므로 고도화 목록 14번에서 개선 예정)
                     List<StockPriceDto> prices = stockDao.selectPriceByTicker(alert.getTicker());
                     if (prices.isEmpty()) continue;
 
@@ -72,6 +81,10 @@ public class PriceAlertService {
         }
     }
 
+    /**
+     * 장 마감 뒤(평일 16:30) 최신 시세에서 시가 대비 종가가 ±10% 이상 움직인 종목을 찾아,
+     * 그 종목을 관심 종목으로 등록한 사용자에게 알린다.
+     */
     public void checkBigMoveStocks() {
         try {
             for (StockPriceDto stock : stockDao.selectLatestPrices()) {
@@ -80,7 +93,7 @@ public class PriceAlertService {
                 if (open <= 0) continue;
 
                 double rate = ((double)(close - open) / open) * 100;
-                if (Math.abs(rate) < 10) continue;
+                if (Math.abs(rate) < BIG_MOVE_PERCENT) continue;
 
                 String direction     = rate > 0 ? "UP" : "DOWN";
                 String rateFormatted = String.format("%.2f", rate);

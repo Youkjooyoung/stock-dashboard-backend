@@ -17,6 +17,7 @@ import com.stock.dashboard.service.PortfolioService;
 
 import lombok.RequiredArgsConstructor;
 
+/** 로그인한 사용자의 보유 종목(포트폴리오) 조회·추가·삭제 API. */
 @RestController
 @RequestMapping("/api/portfolio")
 @RequiredArgsConstructor

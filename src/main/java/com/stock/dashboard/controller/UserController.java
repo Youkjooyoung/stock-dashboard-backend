@@ -22,6 +22,7 @@ import com.stock.dashboard.service.UserService;
 
 import lombok.RequiredArgsConstructor;
 
+/** 로그인한 사용자 본인의 정보·관심 종목·닉네임·비밀번호·프로필 이미지·탈퇴 API. */
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor

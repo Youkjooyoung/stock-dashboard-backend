@@ -13,6 +13,7 @@ import com.stock.dashboard.exception.BusinessException;
 
 import lombok.RequiredArgsConstructor;
 
+/** 관리자 화면용 조회와 회원 관리(잠금 해제, 권한 변경, 인증 메일 재발송). */
 @Service
 @RequiredArgsConstructor
 public class AdminService {

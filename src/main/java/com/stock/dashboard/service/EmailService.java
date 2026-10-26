@@ -17,6 +17,7 @@ import com.stock.dashboard.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** Resend API 로 메일을 보낸다(가입 인증, 비밀번호 재설정, 임시 비밀번호, 수집 완료 알림). */
 @Slf4j
 @Service
 @RequiredArgsConstructor

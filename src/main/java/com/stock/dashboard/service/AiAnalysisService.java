@@ -6,6 +6,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -14,18 +16,20 @@ import org.springframework.util.StringUtils;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.stock.dashboard.exception.BusinessException;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/** 화면에서 만든 분석 요청 문장을 OpenAI Responses API 로 보내고 답변 글을 돌려준다. */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class AiAnalysisService {
 
     private static final String OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
+    // 답변 생성은 수십 초 걸릴 수 있어 공용 HttpClient 의 기본(10초)보다 길게 기다린다.
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
     private static final String SYSTEM_PROMPT = """
             You are an AI assistant for a Korean stock dashboard.
@@ -41,10 +45,8 @@ public class AiAnalysisService {
     @Value("${openai.model:gpt-5.4-mini}")
     private String model;
 
+    private final HttpClient   httpClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(CONNECT_TIMEOUT)
-            .build();
 
     public String analyze(String prompt) throws Exception {
         if (!StringUtils.hasText(apiKey)) {
@@ -83,6 +85,10 @@ public class AiAnalysisService {
         return analysis;
     }
 
+    /**
+     * 응답에서 답변 글만 꺼낸다. output_text 가 있으면 그것을 쓰고,
+     * 없으면 output[].content[] 중 type 이 output_text 인 글을 빈 줄로 이어 붙인다.
+     */
     private String extractOutputText(String responseBody) throws Exception {
         JsonNode root = objectMapper.readTree(responseBody);
 
@@ -91,22 +97,15 @@ public class AiAnalysisService {
             return outputText;
         }
 
-        ArrayNode textParts = objectMapper.createArrayNode();
+        List<String> textParts = new ArrayList<>();
         for (JsonNode output : root.path("output")) {
             for (JsonNode content : output.path("content")) {
-                if ("output_text".equals(content.path("type").asText()) && StringUtils.hasText(content.path("text").asText())) {
-                    textParts.add(content.path("text").asText());
+                String text = content.path("text").asText();
+                if ("output_text".equals(content.path("type").asText()) && StringUtils.hasText(text)) {
+                    textParts.add(text);
                 }
             }
         }
-
-        StringBuilder builder = new StringBuilder();
-        for (JsonNode part : textParts) {
-            if (builder.length() > 0) {
-                builder.append("\n\n");
-            }
-            builder.append(part.asText());
-        }
-        return builder.toString();
+        return String.join("\n\n", textParts);
     }
 }

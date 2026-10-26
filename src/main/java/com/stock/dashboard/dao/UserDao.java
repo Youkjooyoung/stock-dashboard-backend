@@ -3,6 +3,7 @@ package com.stock.dashboard.dao;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import com.stock.dashboard.dto.UserDto;
 import com.stock.dashboard.dto.UserIdentityResultDto;
@@ -12,12 +13,10 @@ public interface UserDao {
 	int checkEmailExists(String email);
 
 	UserIdentityResultDto findActiveMemberByIdentity(
-		@org.apache.ibatis.annotations.Param("name") String name,
-		@org.apache.ibatis.annotations.Param("phoneNormalized") String phoneNormalized);
+		@Param("name") String name,
+		@Param("phoneNormalized") String phoneNormalized);
 
 	int checkNicknameExists(String nickname);
-
-	void deleteUser(int userId);
 
 	void deleteWatchlist(int userId, int itemId);
 
@@ -34,8 +33,6 @@ public interface UserDao {
 	int insertUser(UserDto dto);
 
 	void insertWatchlist(int userId, int itemId);
-
-	void lockAccount(String email);
 
 	void resetLoginFail(String email);
 
@@ -57,15 +54,15 @@ public interface UserDao {
 
 	String findProfileImageUrl(long userId);
 
-        void updateProfileImageUrl(@org.apache.ibatis.annotations.Param("userId") long userId, @org.apache.ibatis.annotations.Param("imageUrl") String imageUrl);
+	void updateProfileImageUrl(@Param("userId") long userId, @Param("imageUrl") String imageUrl);
 
 	UserDto findByEmailIncludeDeleted(String email);
 
-	void softDeleteUser(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("deleteReason") String deleteReason);
+	void softDeleteUser(@Param("userId") int userId, @Param("deleteReason") String deleteReason);
 
 	void restoreUser(int userId);
 
-	void updateIdentity(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("name") String name, @org.apache.ibatis.annotations.Param("phone") String phone);
+	void updateIdentity(@Param("userId") int userId, @Param("name") String name, @Param("phone") String phone);
 
-	void updateForcePwChange(@org.apache.ibatis.annotations.Param("userId") int userId, @org.apache.ibatis.annotations.Param("forcePwChange") String forcePwChange);
+	void updateForcePwChange(@Param("userId") int userId, @Param("forcePwChange") String forcePwChange);
 }
